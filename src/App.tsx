@@ -5,6 +5,7 @@ import './App.css'
 type VaultEntry = {
   id: string
   siteName: string
+  siteUrl: string
   userName: string
   password: string
   notes: string
@@ -143,9 +144,15 @@ function App() {
 
   const [entries, setEntries] = useState<VaultEntry[]>([])
   const [entrySiteName, setEntrySiteName] = useState('')
+  const [entrySiteUrl, setEntrySiteUrl] = useState('')
   const [entryUserName, setEntryUserName] = useState('')
   const [entryPassword, setEntryPassword] = useState('')
   const [entryNotes, setEntryNotes] = useState('')
+  const [addEntryOpen, setAddEntryOpen] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState<VaultEntry | null>(
+    null,
+  )
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
   const [vaultMeta, setVaultMeta] = useState<
@@ -202,6 +209,7 @@ function App() {
     setVaultMeta(meta)
     setEntries([])
     setAccessMode('unlocked')
+    setAddEntryOpen(false)
     setMasterPassword('')
     setConfirmPassword('')
   }
@@ -233,6 +241,7 @@ function App() {
       })
       setEntries(decryptedEntries)
       setAccessMode('unlocked')
+      setAddEntryOpen(false)
       setMasterPassword('')
     } catch {
       setUnlockError('Incorrect master password or corrupted vault data.')
@@ -259,6 +268,7 @@ function App() {
     const nextEntry: VaultEntry = {
       id: crypto.randomUUID(),
       siteName: entrySiteName.trim(),
+      siteUrl: entrySiteUrl.trim(),
       userName: entryUserName.trim(),
       password: entryPassword,
       notes: entryNotes.trim(),
@@ -269,6 +279,7 @@ function App() {
     await saveEntries(nextEntries, cryptoKey, vaultMeta)
 
     setEntrySiteName('')
+    setEntrySiteUrl('')
     setEntryUserName('')
     setEntryPassword('')
     setEntryNotes('')
@@ -283,14 +294,53 @@ function App() {
     await saveEntries(nextEntries, cryptoKey, vaultMeta)
   }
 
+  const requestDeleteEntry = (entry: VaultEntry) => {
+    setPendingDeleteEntry(entry)
+  }
+
+  const cancelDeleteEntry = () => {
+    setPendingDeleteEntry(null)
+  }
+
+  const confirmDeleteEntry = () => {
+    if (!pendingDeleteEntry) {
+      return
+    }
+
+    void handleDeleteEntry(pendingDeleteEntry.id)
+    setPendingDeleteEntry(null)
+  }
+
+  const handleCopy = (text: string, key: string) => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(key)
+      setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500)
+    })
+  }
+
   const sortedEntries = useMemo(() => {
-    return [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return [...entries].sort((a, b) =>
+      a.siteName.localeCompare(b.siteName, undefined, { sensitivity: 'base' }),
+    )
   }, [entries])
 
   return (
     <main className="app-shell">
       <header className="hero-card">
-        <p className="eyebrow">Offline Password Vault</p>
+        <div className="panel-title-row">
+          <p className="eyebrow">Offline Password Vault</p>
+          {accessMode === 'unlocked' && (
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={handleLock}
+              aria-label="Lock vault"
+              title="Lock vault"
+            >
+              🔒
+            </button>
+          )}
+        </div>
         <h1>Private passwords on your device.</h1>
         <p className="subtitle">
           Data is encrypted in your browser before it is saved to local storage.
@@ -348,14 +398,17 @@ function App() {
       {accessMode === 'unlocked' && (
         <>
           <section className="panel">
-            <div className="panel-title-row">
+            <button
+              type="button"
+              className="add-entry-toggle"
+              onClick={() => setAddEntryOpen((open) => !open)}
+              aria-expanded={addEntryOpen}
+            >
+              <span className="add-entry-icon">{addEntryOpen ? '−' : '+'}</span>
               <h2>Add Entry</h2>
-              <button type="button" className="ghost-btn" onClick={handleLock}>
-                Lock
-              </button>
-            </div>
+            </button>
 
-            <form onSubmit={handleAddEntry} className="entry-form">
+            {addEntryOpen && <form onSubmit={handleAddEntry} className="entry-form">
               <label>
                 Site Name
                 <input
@@ -363,6 +416,16 @@ function App() {
                   value={entrySiteName}
                   onChange={(event) => setEntrySiteName(event.target.value)}
                   required
+                />
+              </label>
+
+              <label>
+                Site URL
+                <input
+                  type="url"
+                  value={entrySiteUrl}
+                  onChange={(event) => setEntrySiteUrl(event.target.value)}
+                  placeholder="https://"
                 />
               </label>
 
@@ -397,7 +460,7 @@ function App() {
               <button type="submit" className="primary-btn">
                 Save Entry
               </button>
-            </form>
+            </form>}
           </section>
 
           <section className="panel">
@@ -409,35 +472,93 @@ function App() {
               <ul className="entry-list">
                 {sortedEntries.map((entry) => (
                   <li key={entry.id} className="entry-item">
-                    <div className="entry-row">
-                      <span className="label">Site</span>
-                      <span className="value">{entry.siteName}</span>
+                    <div className="entry-header">
+                      <span className="entry-site-name">{entry.siteName}</span>
+                      <button
+                        type="button"
+                        className="delete-btn"
+                        title="Delete entry"
+                        onClick={() => requestDeleteEntry(entry)}
+                      >
+                        ✕
+                      </button>
                     </div>
+                    {entry.siteUrl && (
+                      <div className="entry-row">
+                        <span className="label">URL</span>
+                        <span className="value">
+                          <a href={entry.siteUrl} target="_blank" rel="noopener noreferrer" className="site-link">
+                            {entry.siteUrl}
+                          </a>
+                        </span>
+                      </div>
+                    )}
                     <div className="entry-row">
                       <span className="label">User</span>
-                      <span className="value">{entry.userName || '-'}</span>
+                      <span className="value copy-row">
+                        {entry.userName || '-'}
+                        {entry.userName && (
+                          <button
+                            type="button"
+                            className="copy-btn"
+                            title="Copy username"
+                            onClick={() => handleCopy(entry.userName, `user-${entry.id}`)}
+                          >
+                            {copiedId === `user-${entry.id}` ? '✓' : '⎘'}
+                          </button>
+                        )}
+                      </span>
                     </div>
                     <div className="entry-row">
                       <span className="label">Password</span>
-                      <span className="value secret">{entry.password}</span>
+                      <span className="value secret copy-row">
+                        {entry.password}
+                        <button
+                          type="button"
+                          className="copy-btn"
+                          title="Copy password"
+                          onClick={() => handleCopy(entry.password, `pw-${entry.id}`)}
+                        >
+                          {copiedId === `pw-${entry.id}` ? '✓' : '⎘'}
+                        </button>
+                      </span>
                     </div>
                     <div className="entry-row notes">
                       <span className="label">Notes</span>
                       <span className="value">{entry.notes || '-'}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="danger-btn"
-                      onClick={() => void handleDeleteEntry(entry.id)}
-                    >
-                      Delete
-                    </button>
                   </li>
                 ))}
               </ul>
             )}
           </section>
         </>
+      )}
+
+      {pendingDeleteEntry && (
+        <div className="modal-overlay" role="presentation" onClick={cancelDeleteEntry}>
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-dialog-title">Delete Entry?</h2>
+            <p>
+              This will permanently remove <strong>{pendingDeleteEntry.siteName}</strong>{' '}
+              from your vault.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="ghost-btn" onClick={cancelDeleteEntry}>
+                Cancel
+              </button>
+              <button type="button" className="danger-action-btn" onClick={confirmDeleteEntry}>
+                Delete
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
   )
