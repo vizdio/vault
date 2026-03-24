@@ -68,6 +68,8 @@ This repo includes a workflow at .github/workflows/deploy-pages.yml.
 1. Push to GitHub (branch main).
 2. In GitHub repository settings:
    - Pages -> Source: GitHub Actions
+   - If deployment fails with `Failed to create deployment (status: 404)`, Pages is not enabled yet for this repository.
+   - For private repositories, make sure the repository owner plan supports GitHub Pages.
 3. The workflow builds and deploys automatically.
 
 The workflow uses:
