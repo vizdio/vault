@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="Vault icon">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f2f3a"/>
+      <stop offset="100%" stop-color="#1d4f5d"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#g)"/>
+  <rect x="40" y="76" width="112" height="80" rx="16" fill="#f3eee8"/>
+  <path d="M60 76V58c0-20 14-34 36-34s36 14 36 34v18h-16V58c0-10-8-18-20-18s-20 8-20 18v18H60z" fill="#f3eee8"/>
+  <circle cx="96" cy="114" r="12" fill="#e36a2f"/>
+</svg>
