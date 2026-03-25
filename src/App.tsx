@@ -180,6 +180,8 @@ function App() {
   const addEntrySectionRef = useRef<HTMLElement | null>(null)
   const importFileInputRef = useRef<HTMLInputElement | null>(null)
   const [transferMessage, setTransferMessage] = useState('')
+  const [pasteImportOpen, setPasteImportOpen] = useState(false)
+  const [pasteImportText, setPasteImportText] = useState('')
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
   const [vaultMeta, setVaultMeta] = useState<
@@ -412,6 +414,37 @@ function App() {
     setTransferMessage('Plain-text backup exported.')
   }
 
+  const parseAndImportBackupText = async (text: string): Promise<void> => {
+    if (!cryptoKey || !vaultMeta) {
+      setTransferMessage('Unlock the vault before importing.')
+      return
+    }
+
+    const parsed = JSON.parse(text) as { entries?: unknown }
+
+    if (!Array.isArray(parsed.entries)) {
+      throw new Error('Invalid backup: missing entries array.')
+    }
+
+    const normalizedEntries = parsed.entries.map((entry) => {
+      if (!isVaultEntryShape(entry)) {
+        throw new Error('Invalid entry shape.')
+      }
+
+      return {
+        ...entry,
+        siteName: entry.siteName.trim(),
+        siteUrl: entry.siteUrl.trim(),
+        userName: entry.userName.trim(),
+        notes: entry.notes.trim(),
+      }
+    })
+
+    await saveEntries(normalizedEntries, cryptoKey, vaultMeta)
+    resetEntryForm()
+    setTransferMessage(`Imported ${normalizedEntries.length} entries from backup.`)
+  }
+
   const importUnencryptedBackup = async (
     event: FormEvent<HTMLInputElement>,
   ) => {
@@ -426,34 +459,25 @@ function App() {
     }
 
     try {
-      const fileContent = await file.text()
-      const parsed = JSON.parse(fileContent) as { entries?: unknown }
-
-      if (!Array.isArray(parsed.entries)) {
-        throw new Error('Invalid backup file.')
-      }
-
-      const normalizedEntries = parsed.entries.map((entry) => {
-        if (!isVaultEntryShape(entry)) {
-          throw new Error('Invalid entry shape.')
-        }
-
-        return {
-          ...entry,
-          siteName: entry.siteName.trim(),
-          siteUrl: entry.siteUrl.trim(),
-          userName: entry.userName.trim(),
-          notes: entry.notes.trim(),
-        }
-      })
-
-      await saveEntries(normalizedEntries, cryptoKey, vaultMeta)
-      resetEntryForm()
-      setTransferMessage(`Imported ${normalizedEntries.length} entries from plain-text backup.`)
+      await parseAndImportBackupText(await file.text())
     } catch {
       setTransferMessage('Import failed. Choose a valid plain-text backup JSON file.')
     } finally {
       event.currentTarget.value = ''
+    }
+  }
+
+  const handlePasteImport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    try {
+      await parseAndImportBackupText(pasteImportText)
+      setPasteImportOpen(false)
+      setPasteImportText('')
+    } catch {
+      setTransferMessage('Import failed. Make sure the pasted text is valid backup JSON.')
+      setPasteImportOpen(false)
+      setPasteImportText('')
     }
   }
 
@@ -687,6 +711,9 @@ function App() {
 
           <section className="panel transfer-panel">
             <h2>Backup & Restore</h2>
+            <p className="transfer-warning">
+              Plain-text export contains unencrypted passwords. Store it securely.
+            </p>
             <div className="transfer-actions">
               <button
                 type="button"
@@ -700,7 +727,14 @@ function App() {
                 className="primary-btn"
                 onClick={() => importFileInputRef.current?.click()}
               >
-                Import
+                Import json
+              </button>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => { setPasteImportOpen(true); setTransferMessage('') }}
+              >
+                Import text
               </button>
               <input
                 ref={importFileInputRef}
@@ -713,6 +747,40 @@ function App() {
             {transferMessage && <p className="transfer-message">{transferMessage}</p>}
           </section>
         </>
+      )}
+
+      {pasteImportOpen && (
+        <div className="modal-overlay" role="presentation" onClick={() => setPasteImportOpen(false)}>
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="paste-import-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="paste-import-title">Import by Pasting</h2>
+            <p>Paste the contents of a plain-text backup JSON file below.</p>
+            <form onSubmit={handlePasteImport} className="stack">
+              <textarea
+                value={pasteImportText}
+                onChange={(event) => setPasteImportText(event.target.value)}
+                rows={10}
+                placeholder='{"version":1,"entries":[...]}'
+                required
+                autoFocus
+                className="paste-import-textarea"
+              />
+              <div className="modal-actions">
+                <button type="button" className="ghost-btn" onClick={() => { setPasteImportOpen(false); setPasteImportText('') }}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary-btn">
+                  Import
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
       )}
 
       {pendingDeleteEntry && (

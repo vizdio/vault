@@ -334,6 +334,12 @@ button {
   margin: 0;
 }
 
+.paste-import-textarea {
+  font-family: 'Courier New', monospace;
+  font-size: 0.82rem;
+  resize: vertical;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
