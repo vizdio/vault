@@ -1,6 +1,75 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faBan,
+  faBriefcase,
+  faCartShopping,
+  faCheck,
+  faCircle,
+  faCopy,
+  faEye,
+  faFileArrowDown,
+  faFileLines,
+  faFilm,
+  faHouse,
+  faLink,
+  faMinus,
+  faPenToSquare,
+  faPlus,
+  faScrewdriverWrench,
+  faTag,
+  faUnlock,
+  faUser,
+  faUsers,
+  faWallet,
+  faXmark,
+} from '@fortawesome/free-solid-svg-icons'
+import {
+  buildStoredVault,
+  createVaultKey,
+  decryptVaultData,
+  deriveVaultKey,
+  PBKDF2_ITERATIONS,
+} from './lib/vaultCrypto'
+import {
+  isStoredVaultShape,
+  loadStoredVault,
+  saveStoredVault,
+} from './lib/vaultStorage'
+import type {
+  EncryptedVaultBackup,
+  StoredVaultMeta,
+} from './lib/vaultStorage'
 import './App.css'
+
+const GROUP_OPTIONS = [
+  { value: 'Private', icon: faUser },
+  { value: 'Work', icon: faBriefcase },
+  { value: 'Home', icon: faHouse },
+  { value: 'Money', icon: faWallet },
+  { value: 'Social', icon: faUsers },
+  { value: 'Media', icon: faFilm },
+  { value: 'Shop', icon: faCartShopping },
+  { value: 'Tools', icon: faScrewdriverWrench },
+  { value: 'Other', icon: faTag },
+] as const
+
+type GroupName = (typeof GROUP_OPTIONS)[number]['value']
+
+const GROUP_ICON_BY_NAME: Record<GroupName, (typeof GROUP_OPTIONS)[number]['icon']> =
+  Object.fromEntries(GROUP_OPTIONS.map((group) => [group.value, group.icon])) as Record<
+    GroupName,
+    (typeof GROUP_OPTIONS)[number]['icon']
+  >
+
+const isGroupName = (value: unknown): value is GroupName => {
+  return typeof value === 'string' && GROUP_OPTIONS.some((group) => group.value === value)
+}
+
+const normalizeGroupName = (value: unknown): GroupName => {
+  return isGroupName(value) ? value : 'Other'
+}
 
 type VaultEntry = {
   id: string
@@ -9,152 +78,40 @@ type VaultEntry = {
   userName: string
   password: string
   notes: string
+  group?: GroupName
   createdAt: string
 }
 
-type StoredVault = {
-  version: 1
-  salt: string
-  iterations: number
-  iv: string
-  ciphertext: string
-}
-
 type AccessMode = 'setup' | 'login' | 'unlocked'
+const INACTIVITY_LOCK_MS = 5 * 60 * 1000
 
-type EncryptedVaultBackup = {
-  backupVersion: 1
-  exportedAt: string
-  vault: StoredVault
-}
-
-const STORAGE_KEY = 'password-vault:v1'
-const PBKDF2_ITERATIONS = 250000
-
-const textEncoder = new TextEncoder()
-const textDecoder = new TextDecoder()
-
-const bytesToBase64 = (bytes: Uint8Array): string => {
-  let binary = ''
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte)
+const normalizeSiteUrl = (url: string): string => {
+  const trimmed = url.trim()
+  if (!trimmed) {
+    return ''
   }
-  return btoa(binary)
-}
 
-const base64ToBytes = (base64: string): Uint8Array => {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i)
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed
   }
-  return bytes
+
+  return `https://${trimmed}`
 }
 
-const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
-  const clone = new Uint8Array(bytes.length)
-  clone.set(bytes)
-  return clone.buffer
+const getDisplaySiteUrl = (url: string): string => {
+  return url.replace(/^https?:\/\//i, '')
 }
 
-const deriveKey = async (
-  masterPassword: string,
-  saltBytes: Uint8Array,
-  iterations: number,
-): Promise<CryptoKey> => {
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    textEncoder.encode(masterPassword),
-    'PBKDF2',
-    false,
-    ['deriveKey'],
-  )
-
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: toArrayBuffer(saltBytes),
-      iterations,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  )
-}
-
-const encryptEntries = async (
-  entries: VaultEntry[],
-  key: CryptoKey,
-): Promise<Pick<StoredVault, 'iv' | 'ciphertext'>> => {
-  const ivBytes = crypto.getRandomValues(new Uint8Array(12))
-  const plainBytes = textEncoder.encode(JSON.stringify(entries))
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: ivBytes },
-    key,
-    plainBytes,
-  )
-
-  return {
-    iv: bytesToBase64(ivBytes),
-    ciphertext: bytesToBase64(new Uint8Array(encrypted)),
-  }
-}
-
-const decryptEntries = async (
-  storedVault: StoredVault,
-  key: CryptoKey,
-): Promise<VaultEntry[]> => {
-  const decrypted = await crypto.subtle.decrypt(
-    {
-      name: 'AES-GCM',
-      iv: toArrayBuffer(base64ToBytes(storedVault.iv)),
-    },
-    key,
-    toArrayBuffer(base64ToBytes(storedVault.ciphertext)),
-  )
-
-  const parsed = JSON.parse(textDecoder.decode(decrypted)) as VaultEntry[]
-  return parsed
-}
-
-const loadStoredVault = (): StoredVault | null => {
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) {
-    return null
+const clearClipboardBestEffort = async (): Promise<void> => {
+  if (!navigator.clipboard) {
+    return
   }
 
   try {
-    const parsed = JSON.parse(raw) as StoredVault
-    if (
-      parsed.version !== 1 ||
-      !parsed.salt ||
-      !parsed.iv ||
-      !parsed.ciphertext ||
-      typeof parsed.iterations !== 'number'
-    ) {
-      return null
-    }
-    return parsed
+    await navigator.clipboard.writeText('')
   } catch {
-    return null
+    // Clipboard write may fail if browser permissions are restricted.
   }
-}
-
-const isStoredVaultShape = (value: unknown): value is StoredVault => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const candidate = value as Record<string, unknown>
-  return (
-    candidate.version === 1 &&
-    typeof candidate.salt === 'string' &&
-    typeof candidate.iv === 'string' &&
-    typeof candidate.ciphertext === 'string' &&
-    typeof candidate.iterations === 'number'
-  )
 }
 
 function App() {
@@ -169,6 +126,7 @@ function App() {
   const [entryUserName, setEntryUserName] = useState('')
   const [entryPassword, setEntryPassword] = useState('')
   const [entryNotes, setEntryNotes] = useState('')
+  const [entryGroup, setEntryGroup] = useState<GroupName>('Private')
   const [addEntryOpen, setAddEntryOpen] = useState(false)
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -181,11 +139,15 @@ function App() {
   const [pasteImportOpen, setPasteImportOpen] = useState(false)
   const [pasteImportText, setPasteImportText] = useState('')
   const [authMessage, setAuthMessage] = useState('')
+  const [revealedPasswordIds, setRevealedPasswordIds] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const [importWarningTarget, setImportWarningTarget] = useState<'file' | 'paste' | null>(
+    null,
+  )
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
-  const [vaultMeta, setVaultMeta] = useState<
-    Pick<StoredVault, 'salt' | 'iterations'> | null
-  >(null)
+  const [vaultMeta, setVaultMeta] = useState<StoredVaultMeta | null>(null)
 
   useEffect(() => {
     const existing = loadStoredVault()
@@ -199,17 +161,10 @@ function App() {
   const saveEntries = async (
     nextEntries: VaultEntry[],
     key: CryptoKey,
-    meta: Pick<StoredVault, 'salt' | 'iterations'>,
+    meta: StoredVaultMeta,
   ) => {
-    const encrypted = await encryptEntries(nextEntries, key)
-    const payload: StoredVault = {
-      version: 1,
-      salt: meta.salt,
-      iterations: meta.iterations,
-      ...encrypted,
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    const payload = await buildStoredVault(nextEntries, key, meta)
+    saveStoredVault(payload)
     setEntries(nextEntries)
   }
 
@@ -228,10 +183,7 @@ function App() {
       return
     }
 
-    const saltBytes = crypto.getRandomValues(new Uint8Array(16))
-    const salt = bytesToBase64(saltBytes)
-    const key = await deriveKey(masterPassword, saltBytes, PBKDF2_ITERATIONS)
-    const meta = { salt, iterations: PBKDF2_ITERATIONS }
+    const { key, meta } = await createVaultKey(masterPassword, PBKDF2_ITERATIONS)
 
     await saveEntries([], key, meta)
     setCryptoKey(key)
@@ -257,20 +209,20 @@ function App() {
     }
 
     try {
-      const saltBytes = base64ToBytes(storedVault.salt)
-      const key = await deriveKey(
-        masterPassword,
-        saltBytes,
-        storedVault.iterations,
-      )
-      const decryptedEntries = await decryptEntries(storedVault, key)
+      const key = await deriveVaultKey(masterPassword, storedVault.salt, storedVault.iterations)
+      const decryptedEntries = await decryptVaultData<VaultEntry[]>(storedVault, key)
 
       setCryptoKey(key)
       setVaultMeta({
         salt: storedVault.salt,
         iterations: storedVault.iterations,
       })
-      setEntries(decryptedEntries)
+      setEntries(
+        decryptedEntries.map((entry) => ({
+          ...entry,
+          group: normalizeGroupName(entry.group),
+        })),
+      )
       setAccessMode('unlocked')
       setAddEntryOpen(false)
       setEditingEntryId(null)
@@ -280,16 +232,63 @@ function App() {
     }
   }
 
-  const handleLock = () => {
+  const lockVault = useCallback((message?: string) => {
+    void clearClipboardBestEffort()
     setCryptoKey(null)
     setVaultMeta(null)
     setEntries([])
+    setCopiedId(null)
+    setRevealedPasswordIds(new Set())
     setAccessMode('login')
     setMasterPassword('')
     setConfirmPassword('')
     setUnlockError('')
     setEditingEntryId(null)
+    if (message) {
+      setAuthMessage(message)
+    }
+  }, [])
+
+  const handleLock = () => {
+    setAuthMessage('')
+    lockVault()
   }
+
+  useEffect(() => {
+    if (accessMode !== 'unlocked') {
+      return
+    }
+
+    let inactivityTimer: number
+
+    const resetInactivityTimer = () => {
+      window.clearTimeout(inactivityTimer)
+      inactivityTimer = window.setTimeout(() => {
+        lockVault('Locked after 5 minutes of inactivity.')
+      }, INACTIVITY_LOCK_MS)
+    }
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      'pointerdown',
+      'pointermove',
+      'keydown',
+      'scroll',
+      'touchstart',
+    ]
+
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, resetInactivityTimer, { passive: true })
+    }
+
+    resetInactivityTimer()
+
+    return () => {
+      window.clearTimeout(inactivityTimer)
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, resetInactivityTimer)
+      }
+    }
+  }, [accessMode, lockVault])
 
   const resetEntryForm = () => {
     setEntrySiteName('')
@@ -297,6 +296,7 @@ function App() {
     setEntryUserName('')
     setEntryPassword('')
     setEntryNotes('')
+    setEntryGroup('Private')
     setEditingEntryId(null)
   }
 
@@ -309,10 +309,11 @@ function App() {
 
     const nextEntryData = {
       siteName: entrySiteName.trim(),
-      siteUrl: entrySiteUrl.trim(),
+      siteUrl: normalizeSiteUrl(entrySiteUrl),
       userName: entryUserName.trim(),
       password: entryPassword,
       notes: entryNotes.trim(),
+      group: entryGroup,
     }
 
     const nextEntries = editingEntryId
@@ -360,6 +361,7 @@ function App() {
     setEntryUserName(entry.userName)
     setEntryPassword(entry.password)
     setEntryNotes(entry.notes)
+    setEntryGroup(normalizeGroupName(entry.group))
     setEditingEntryId(entry.id)
     setAddEntryOpen(true)
 
@@ -389,6 +391,41 @@ function App() {
     void navigator.clipboard.writeText(text).then(() => {
       setCopiedId(key)
       setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500)
+    })
+  }
+
+  const requestImportWarning = (target: 'file' | 'paste') => {
+    setTransferMessage('')
+    setImportWarningTarget(target)
+  }
+
+  const cancelImportWarning = () => {
+    setImportWarningTarget(null)
+  }
+
+  const confirmImportWarning = () => {
+    if (!importWarningTarget) {
+      return
+    }
+
+    if (importWarningTarget === 'file') {
+      importFileInputRef.current?.click()
+    } else {
+      setPasteImportOpen(true)
+    }
+
+    setImportWarningTarget(null)
+  }
+
+  const togglePasswordReveal = (entryId: string) => {
+    setRevealedPasswordIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(entryId)) {
+        next.delete(entryId)
+      } else {
+        next.add(entryId)
+      }
+      return next
     })
   }
 
@@ -433,7 +470,7 @@ function App() {
       throw new Error('Invalid encrypted backup format.')
     }
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(vaultData))
+    saveStoredVault(vaultData)
     setCryptoKey(null)
     setVaultMeta(null)
     setEntries([])
@@ -474,10 +511,23 @@ function App() {
     }
   }
 
-  const sortedEntries = useMemo(() => {
-    return [...entries].sort((a, b) =>
-      a.siteName.localeCompare(b.siteName, undefined, { sensitivity: 'base' }),
-    )
+  const groupedEntries = useMemo(() => {
+    const grouped = Object.fromEntries(
+      GROUP_OPTIONS.map(({ value }) => [value, [] as VaultEntry[]]),
+    ) as Record<GroupName, VaultEntry[]>
+
+    entries.forEach((entry) => {
+      const group = normalizeGroupName(entry.group)
+      grouped[group].push(entry)
+    })
+
+    GROUP_OPTIONS.forEach(({ value }) => {
+      grouped[value].sort((a, b) =>
+        a.siteName.localeCompare(b.siteName, undefined, { sensitivity: 'base' }),
+      )
+    })
+
+    return grouped
   }, [entries])
 
   return (
@@ -501,7 +551,7 @@ function App() {
               aria-label="Lock vault"
               title="Lock vault"
             >
-              ✕
+              <FontAwesomeIcon icon={faXmark} />
             </button>
           )}
         </div>
@@ -515,30 +565,28 @@ function App() {
             onSubmit={accessMode === 'setup' ? handleSetup : handleUnlock}
             className="stack"
           >
-            <label>
-              Master Password
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={masterPassword}
+              onChange={(event) => setMasterPassword(event.target.value)}
+              placeholder="Master Password"
+              aria-label="Master Password"
+              required
+              minLength={10}
+            />
+
+            {accessMode === 'setup' && (
               <input
                 type="password"
-                autoComplete="current-password"
-                value={masterPassword}
-                onChange={(event) => setMasterPassword(event.target.value)}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Confirm Master Password"
+                aria-label="Confirm Master Password"
                 required
                 minLength={10}
               />
-            </label>
-
-            {accessMode === 'setup' && (
-              <label>
-                Confirm Master Password
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  required
-                  minLength={10}
-                />
-              </label>
             )}
 
             {unlockError && <p className="error">{unlockError}</p>}
@@ -559,59 +607,77 @@ function App() {
               onClick={() => setAddEntryOpen((open) => !open)}
               aria-expanded={addEntryOpen}
             >
-              <span className="add-entry-icon">{addEntryOpen ? '－' : '＋'}</span>
+              <span className="add-entry-icon" aria-hidden="true">
+                <FontAwesomeIcon icon={addEntryOpen ? faMinus : faPlus} />
+              </span>
               <h2>{editingEntryId ? 'Update' : 'Add'}</h2>
             </button>
 
             {addEntryOpen && <form onSubmit={handleAddEntry} className="entry-form">
-              <label>
-                Site Name
-                <input
-                  type="text"
-                  value={entrySiteName}
-                  onChange={(event) => setEntrySiteName(event.target.value)}
-                  required
-                />
-              </label>
+              <input
+                type="text"
+                value={entrySiteName}
+                onChange={(event) => setEntrySiteName(event.target.value)}
+                placeholder="Site Name"
+                aria-label="Site Name"
+                required
+              />
 
-              <label>
-                Site URL
-                <input
-                  type="url"
-                  value={entrySiteUrl}
-                  onChange={(event) => setEntrySiteUrl(event.target.value)}
-                  placeholder="https://"
-                />
-              </label>
+              <input
+                type="url"
+                value={entrySiteUrl}
+                onChange={(event) => setEntrySiteUrl(event.target.value)}
+                onBlur={() => setEntrySiteUrl((value) => normalizeSiteUrl(value))}
+                placeholder="Site URL"
+                aria-label="Site URL"
+              />
 
-              <label>
-                User Name
-                <input
-                  type="text"
-                  value={entryUserName}
-                  onChange={(event) => setEntryUserName(event.target.value)}
-                  required
-                />
-              </label>
+              <input
+                type="text"
+                value={entryUserName}
+                onChange={(event) => setEntryUserName(event.target.value)}
+                placeholder="User Name"
+                aria-label="User Name"
+                required
+              />
 
-              <label>
-                Password
-                <input
-                  type="text"
-                  value={entryPassword}
-                  onChange={(event) => setEntryPassword(event.target.value)}
-                  required
-                />
-              </label>
+              <input
+                type="password"
+                value={entryPassword}
+                onChange={(event) => setEntryPassword(event.target.value)}
+                placeholder="Password"
+                aria-label="Password"
+                required
+              />
 
-              <label className="notes-label">
-                Notes
-                <textarea
-                  value={entryNotes}
-                  onChange={(event) => setEntryNotes(event.target.value)}
-                  rows={3}
-                />
-              </label>
+              <textarea
+                value={entryNotes}
+                onChange={(event) => setEntryNotes(event.target.value)}
+                rows={3}
+                placeholder="Notes"
+                aria-label="Notes"
+              />
+
+              <fieldset className="group-selector">
+                <div className="group-options">
+                  {GROUP_OPTIONS.map((group) => (
+                    <label
+                      key={group.value}
+                      className={`group-option ${entryGroup === group.value ? 'group-option--selected' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="entryGroup"
+                        value={group.value}
+                        checked={entryGroup === group.value}
+                        onChange={(event) => setEntryGroup(event.target.value as GroupName)}
+                      />
+                      <FontAwesomeIcon icon={group.icon} />
+                      <span>{group.value}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div className="entry-form-actions">
                 {editingEntryId && (
                   <button type="button" className="ghost-btn" onClick={cancelEntryEdit}>
@@ -626,88 +692,153 @@ function App() {
           </section>
 
           <section className="panel">
-            <h2>Passwords</h2>
-            {sortedEntries.length === 0 ? (
+            <h2 className="section-title-with-icon">
+              <FontAwesomeIcon icon={faUnlock} />
+              <span>Passwords</span>
+            </h2>
+            {entries.length === 0 ? (
               <p>No entries yet.</p>
             ) : (
-              <ul className="entry-list">
-                {sortedEntries.map((entry) => (
+              <>
+                {GROUP_OPTIONS.map(({ value: group }) => (
+                  groupedEntries[group].length > 0 && (
+                    <div key={group}>
+                      <h3 className="group-heading">
+                        <FontAwesomeIcon icon={GROUP_ICON_BY_NAME[group]} />
+                        <span>{group}</span>
+                      </h3>
+                      <ul className="entry-list">
+                {groupedEntries[group].map((entry) => (
                   <li key={entry.id} className="entry-item">
                     <div className="entry-header">
                       <span className="entry-site-name">{entry.siteName}</span>
                       <div className="entry-actions">
                         <button
                           type="button"
-                          className="edit-btn"
+                          className="icon-btn icon-btn--entry-action"
                           title="Edit entry"
                           onClick={() => requestEditEntry(entry)}
                         >
-                          ✎
+                          <FontAwesomeIcon icon={faPenToSquare} />
+                          <span className="sr-only">Edit entry</span>
                         </button>
                         <button
                           type="button"
-                          className="delete-btn"
+                          className="icon-btn icon-btn--entry-action"
                           title="Delete entry"
                           onClick={() => requestDeleteEntry(entry)}
                         >
-                          ✕
+                          <FontAwesomeIcon icon={faXmark} />
+                          <span className="sr-only">Delete entry</span>
                         </button>
                       </div>
                     </div>
                     {entry.siteUrl && (
                       <div className="entry-row">
-                        <span className="label">URL</span>
+                        <span className="label">
+                          <FontAwesomeIcon icon={faLink} />
+                          <span className="sr-only">URL</span>
+                        </span>
                         <span className="value">
                           <a href={entry.siteUrl} target="_blank" rel="noopener noreferrer" className="site-link">
-                            {entry.siteUrl}
+                            {getDisplaySiteUrl(entry.siteUrl)}
                           </a>
                         </span>
                       </div>
                     )}
                     <div className="entry-row">
-                      <span className="label">User</span>
+                      <span className="label">
+                        <FontAwesomeIcon icon={faUser} />
+                        <span className="sr-only">User</span>
+                      </span>
                       <span className="value copy-row">
                         {entry.userName || '-'}
                         {entry.userName && (
                           <button
                             type="button"
-                            className="copy-btn"
+                            className={`icon-btn icon-btn--copy ${copiedId === `user-${entry.id}` ? 'copy-btn--copied' : ''}`}
                             title="Copy username"
                             onClick={() => handleCopy(entry.userName, `user-${entry.id}`)}
                           >
-                            {copiedId === `user-${entry.id}` ? '✓' : '⎘'}
+                            {copiedId === `user-${entry.id}` ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faCopy} />}
                           </button>
                         )}
                       </span>
                     </div>
                     <div className="entry-row">
-                      <span className="label">Password</span>
+                      <span className="label">
+                        <FontAwesomeIcon icon={faUnlock} />
+                        <span className="sr-only">Password</span>
+                      </span>
                       <span className="value secret copy-row">
-                        {entry.password}
+                        {revealedPasswordIds.has(entry.id) ? (
+                          entry.password
+                        ) : (
+                          <>
+                            <span className="password-mask" aria-hidden="true">
+                              {Array.from({ length: Math.max(1, entry.password.length) }).map((_, index) => (
+                                <FontAwesomeIcon
+                                  key={`${entry.id}-mask-${index}`}
+                                  icon={faCircle}
+                                />
+                              ))}
+                            </span>
+                            <span className="sr-only">Hidden password</span>
+                          </>
+                        )}
                         <button
                           type="button"
-                          className="copy-btn"
+                          className="icon-btn icon-btn--copy"
+                          title={revealedPasswordIds.has(entry.id) ? 'Hide password' : 'Show password'}
+                          aria-label={revealedPasswordIds.has(entry.id) ? 'Hide password' : 'Show password'}
+                          onClick={() => togglePasswordReveal(entry.id)}
+                        >
+                          {revealedPasswordIds.has(entry.id) ? (
+                            <>
+                              <FontAwesomeIcon icon={faBan} />
+                              <span className="sr-only">Hide password</span>
+                            </>
+                          ) : (
+                            <>
+                              <FontAwesomeIcon icon={faEye} />
+                              <span className="sr-only">Show password</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className={`icon-btn icon-btn--copy ${copiedId === `pw-${entry.id}` ? 'copy-btn--copied' : ''}`}
                           title="Copy password"
                           onClick={() => handleCopy(entry.password, `pw-${entry.id}`)}
                         >
-                          {copiedId === `pw-${entry.id}` ? '✓' : '⎘'}
+                          {copiedId === `pw-${entry.id}` ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faCopy} />}
                         </button>
                       </span>
                     </div>
                     {entry.notes && (
                       <div className="entry-row notes">
-                        <span className="label">Notes</span>
+                        <span className="label">
+                          <FontAwesomeIcon icon={faFileLines} />
+                          <span className="sr-only">Notes</span>
+                        </span>
                         <span className="value-notes">{entry.notes}</span>
                       </div>
                     )}
                   </li>
                 ))}
-              </ul>
+                      </ul>
+                    </div>
+                  )
+                ))}
+              </>
             )}
           </section>
 
           <section className="panel transfer-panel">
-            <h2>Backup & Restore</h2>
+            <h2 className="section-title-with-icon">
+              <FontAwesomeIcon icon={faFileArrowDown} />
+              <span>Backup & Restore</span>
+            </h2>
             <div className="transfer-actions">
               <button
                 type="button"
@@ -719,14 +850,14 @@ function App() {
               <button
                 type="button"
                 className="primary-btn"
-                onClick={() => {setTransferMessage(''); importFileInputRef.current?.click()}}
+                onClick={() => requestImportWarning('file')}
               >
                 Import File
               </button>
               <button
                 type="button"
                 className="primary-btn"
-                onClick={() => { setPasteImportOpen(true); setTransferMessage('') }}
+                onClick={() => requestImportWarning('paste')}
               >
                 Import by Pasting
               </button>
@@ -796,6 +927,34 @@ function App() {
               </button>
               <button type="button" className="danger-action-btn" onClick={confirmDeleteEntry}>
                 Delete
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {importWarningTarget && (
+        <div className="modal-overlay" role="presentation" onClick={cancelImportWarning}>
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-warning-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="import-warning-title">Restore Warning</h2>
+            <p className="transfer-warning">
+              Importing a backup will overwrite your current vault on this device.
+            </p>
+            <p>
+              Make sure you have exported your latest vault first if you want to keep it.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="ghost-btn" onClick={cancelImportWarning}>
+                Cancel
+              </button>
+              <button type="button" className="danger-action-btn" onClick={confirmImportWarning}>
+                Continue Import
               </button>
             </div>
           </section>
