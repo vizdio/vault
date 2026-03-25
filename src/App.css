@@ -7,30 +7,17 @@
 }
 
 .hero-card {
-  background: var(--paper);
-  border: 1px solid color-mix(in srgb, var(--border), #fff 25%);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--card-shadow);
-  padding: 24px;
-}
-
-.eyebrow {
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--muted);
-  margin-bottom: 6px;
+  padding: 0 16px;
+  height: 54px;
+  display: flex;
+  align-items: center;
 }
 
 .hero-card h1 {
+  color: #fff;
   font-size: clamp(1.6rem, 4vw, 2.3rem);
   line-height: 1.1;
   letter-spacing: -0.03em;
-}
-
-.subtitle {
-  margin-top: 10px;
-  color: var(--muted);
 }
 
 .panel {
@@ -85,6 +72,7 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
 }
 
 button {
