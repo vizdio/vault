@@ -85,6 +85,42 @@ type VaultEntry = {
 type AccessMode = 'setup' | 'login' | 'unlocked'
 const INACTIVITY_LOCK_MS = 5 * 60 * 1000
 
+type PasswordStrengthLevel = 'very-weak' | 'weak' | 'fair' | 'good' | 'strong'
+
+type PasswordStrength = {
+  score: 0 | 1 | 2 | 3 | 4
+  label: string
+  level: PasswordStrengthLevel
+}
+
+const getPasswordStrength = (password: string): PasswordStrength => {
+  if (!password) {
+    return { score: 0, label: '', level: 'very-weak' }
+  }
+
+  let rawScore = 0
+  if (password.length >= 8) rawScore += 1
+  if (password.length >= 12) rawScore += 1
+  if (/[a-z]/.test(password)) rawScore += 1
+  if (/[A-Z]/.test(password)) rawScore += 1
+  if (/\d/.test(password)) rawScore += 1
+  if (/[^A-Za-z0-9]/.test(password)) rawScore += 1
+
+  if (rawScore <= 1) {
+    return { score: 1, label: 'Very weak', level: 'very-weak' }
+  }
+  if (rawScore <= 2) {
+    return { score: 1, label: 'Weak', level: 'weak' }
+  }
+  if (rawScore === 3) {
+    return { score: 2, label: 'Fair', level: 'fair' }
+  }
+  if (rawScore === 4) {
+    return { score: 3, label: 'Good', level: 'good' }
+  }
+  return { score: 4, label: 'Strong', level: 'strong' }
+}
+
 const normalizeSiteUrl = (url: string): string => {
   const trimmed = url.trim()
   if (!trimmed) {
@@ -530,6 +566,16 @@ function App() {
     return grouped
   }, [entries])
 
+  const setupPasswordStrength = useMemo(
+    () => getPasswordStrength(masterPassword),
+    [masterPassword],
+  )
+
+  const entryPasswordStrength = useMemo(
+    () => getPasswordStrength(entryPassword),
+    [entryPassword],
+  )
+
   return (
     <main className="app-shell">
       <header className="hero-card">
@@ -575,6 +621,18 @@ function App() {
               required
               minLength={10}
             />
+
+            {accessMode === 'setup' && masterPassword && (
+              <div className="strength-meter" role="status" aria-live="polite">
+                <div className="strength-meter__track" aria-hidden="true">
+                  <div
+                    className={`strength-meter__fill strength-meter__fill--${setupPasswordStrength.level}`}
+                    style={{ width: `${setupPasswordStrength.score * 25}%` }}
+                  />
+                </div>
+                <p className="strength-meter__label">Strength: {setupPasswordStrength.label}</p>
+              </div>
+            )}
 
             {accessMode === 'setup' && (
               <input
@@ -649,6 +707,18 @@ function App() {
                 aria-label="Password"
                 required
               />
+
+              {entryPassword && (
+                <div className="strength-meter" role="status" aria-live="polite">
+                  <div className="strength-meter__track" aria-hidden="true">
+                    <div
+                      className={`strength-meter__fill strength-meter__fill--${entryPasswordStrength.level}`}
+                      style={{ width: `${entryPasswordStrength.score * 25}%` }}
+                    />
+                  </div>
+                  <p className="strength-meter__label">Strength: {entryPasswordStrength.label}</p>
+                </div>
+              )}
 
               <textarea
                 value={entryNotes}

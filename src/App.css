@@ -129,6 +129,51 @@ textarea:focus {
   display: none;
 }
 
+.strength-meter {
+  display: grid;
+  gap: 4px;
+}
+
+.strength-meter__track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border), #fff 20%);
+  overflow: hidden;
+}
+
+.strength-meter__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.strength-meter__fill--very-weak {
+  background: #a11a1a;
+}
+
+.strength-meter__fill--weak {
+  background: #c55a11;
+}
+
+.strength-meter__fill--fair {
+  background: #c79100;
+}
+
+.strength-meter__fill--good {
+  background: #4a9c27;
+}
+
+.strength-meter__fill--strong {
+  background: #1f7a3b;
+}
+
+.strength-meter__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .panel-title-row {
   display: flex;
   align-items: center;
