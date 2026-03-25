@@ -1,16 +1,58 @@
-const CACHE_NAME = 'password-vault-v1'
+const CACHE_NAME = 'password-vault-v2'
 const toAbsoluteUrl = (path) => new URL(path, self.registration.scope).toString()
+const APP_SHELL_URLS = [
+  toAbsoluteUrl('./'),
+  toAbsoluteUrl('./index.html'),
+  toAbsoluteUrl('./manifest.webmanifest'),
+  toAbsoluteUrl('./icons/icon-192.svg'),
+  toAbsoluteUrl('./icons/icon-512.svg'),
+]
+const CACHEABLE_DESTINATIONS = new Set(['style', 'script', 'worker', 'image', 'font'])
+
+const cacheResponse = async (request, response) => {
+  if (!response.ok || response.type !== 'basic') {
+    return response
+  }
+
+  const cache = await caches.open(CACHE_NAME)
+  await cache.put(request, response.clone())
+  return response
+}
+
+const networkFirst = async (request) => {
+  try {
+    const response = await fetch(request)
+    await cacheResponse(request, response)
+
+    if (request.mode === 'navigate') {
+      const cache = await caches.open(CACHE_NAME)
+      await cache.put(toAbsoluteUrl('./index.html'), response.clone())
+    }
+
+    return response
+  } catch {
+    const cachedResponse = await caches.match(request)
+    if (cachedResponse) {
+      return cachedResponse
+    }
+
+    const appShell = await caches.match(toAbsoluteUrl('./index.html'))
+    return appShell || new Response('Offline', { status: 503, statusText: 'Offline' })
+  }
+}
+
+const cacheFirst = async (request) => {
+  const cachedResponse = await caches.match(request)
+  if (cachedResponse) {
+    return cachedResponse
+  }
+
+  const response = await fetch(request)
+  return cacheResponse(request, response)
+}
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll([
-        toAbsoluteUrl('./'),
-        toAbsoluteUrl('./index.html'),
-        toAbsoluteUrl('./manifest.webmanifest'),
-      ]),
-    ),
-  )
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_URLS)))
   self.skipWaiting()
 })
 
@@ -30,29 +72,23 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  const isHttp = event.request.url.startsWith('http')
-  if (!isHttp) {
+  const requestUrl = new URL(event.request.url)
+  if (requestUrl.protocol !== 'http:' && requestUrl.protocol !== 'https:') {
     return
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse
-      }
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkFirst(event.request))
+    return
+  }
 
-      return fetch(event.request)
-        .then((networkResponse) => {
-          const clonedResponse = networkResponse.clone()
-          void caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clonedResponse)
-          })
-          return networkResponse
-        })
-        .catch(async () => {
-          const fallback = await caches.match(toAbsoluteUrl('./index.html'))
-          return fallback || new Response('Offline', { status: 503, statusText: 'Offline' })
-        })
-    }),
-  )
+  const isSameOrigin = requestUrl.origin === self.location.origin
+  const shouldCacheAsset =
+    isSameOrigin &&
+    (CACHEABLE_DESTINATIONS.has(event.request.destination) ||
+      requestUrl.pathname.endsWith('/manifest.webmanifest'))
+
+  if (shouldCacheAsset) {
+    event.respondWith(cacheFirst(event.request))
+  }
 })

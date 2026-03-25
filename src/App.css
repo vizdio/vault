@@ -151,7 +151,6 @@ button {
 .value-notes {
   color: var(--muted);
   font-size: 0.86rem;
-  max-width: calc(100% - 125px);
   word-wrap: break-word;
 }
 
@@ -232,7 +231,6 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 230px;
 }
 
 .copy-btn {
