@@ -276,7 +276,7 @@ function App() {
       setEditingEntryId(null)
       setMasterPassword('')
     } catch {
-      setUnlockError('🞬 Incorrect master password.')
+      setUnlockError('Incorrect master password.')
     }
   }
 
@@ -396,7 +396,7 @@ function App() {
     const stored = loadStoredVault()
     setTransferMessage('')
     if (!stored) {
-      setTransferMessage('🞬 No vault data found to export.')
+      setTransferMessage('No vault data found to export.')
       return
     }
 
@@ -430,7 +430,7 @@ function App() {
       parsed.backupVersion === 1 && parsed.vault ? parsed.vault : parsed
 
     if (!isStoredVaultShape(vaultData)) {
-      throw new Error('🞬 Invalid encrypted backup format.')
+      throw new Error('Invalid encrypted backup format.')
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vaultData))
@@ -454,7 +454,7 @@ function App() {
     try {
       restoreEncryptedBackupText(await file.text())
     } catch {
-      setTransferMessage('🞬 Import failed. Choose a valid encrypted backup JSON file.')
+      setTransferMessage('Import failed. Choose a valid encrypted backup JSON file.')
     } finally {
       event.currentTarget.value = ''
     }
@@ -468,7 +468,7 @@ function App() {
       setPasteImportOpen(false)
       setPasteImportText('')
     } catch {
-      setTransferMessage('🞬 Import failed. Make sure the pasted text is valid backup JSON.')
+      setTransferMessage('Import failed. Make sure the pasted text is valid backup JSON.')
       setPasteImportOpen(false)
       setPasteImportText('')
     }
@@ -486,7 +486,7 @@ function App() {
         <div className="panel-title-row">
           <h1 className="brand-title">
             <img
-              src="/icons/apple-touch-icon-180-v4.png"
+              src={`${import.meta.env.BASE_URL}icons/apple-touch-icon-180-v4.png`}
               alt=""
               aria-hidden="true"
               className="brand-logo"
@@ -559,7 +559,7 @@ function App() {
               onClick={() => setAddEntryOpen((open) => !open)}
               aria-expanded={addEntryOpen}
             >
-              <span className="add-entry-icon">{addEntryOpen ? '⮝' : '＋'}</span>
+              <span className="add-entry-icon">{addEntryOpen ? '－' : '＋'}</span>
               <h2>{editingEntryId ? 'Update' : 'Add'}</h2>
             </button>
 
