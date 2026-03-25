@@ -24,6 +24,7 @@ import {
   faUsers,
   faWallet,
   faXmark,
+  faTrash,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   buildStoredVault,
@@ -231,6 +232,7 @@ function App() {
   const [importWarningTarget, setImportWarningTarget] = useState<'file' | 'paste' | null>(
     null,
   )
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
   const [vaultMeta, setVaultMeta] = useState<StoredVaultMeta | null>(null)
@@ -620,6 +622,14 @@ function App() {
     return grouped
   }, [entries])
 
+  const filteredEntries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return null
+    return entries
+      .filter((entry) => entry.siteName.toLowerCase().includes(q))
+      .sort((a, b) => a.siteName.localeCompare(b.siteName, undefined, { sensitivity: 'base' }))
+  }, [entries, searchQuery])
+
   const setupPasswordStrength = useMemo(
     () => getPasswordStrength(masterPassword),
     [masterPassword],
@@ -628,6 +638,125 @@ function App() {
   const entryPasswordStrength = useMemo(
     () => getPasswordStrength(entryPassword),
     [entryPassword],
+  )
+
+  const renderEntryItem = (entry: VaultEntry) => (
+    <li key={entry.id} className="entry-item">
+      <div className="entry-header">
+        <span className="entry-site-name">{entry.siteName}</span>
+        <div className="entry-actions">
+          <button
+            type="button"
+            className="icon-btn icon-btn--entry-action"
+            title="Edit entry"
+            onClick={() => requestEditEntry(entry)}
+          >
+            <FontAwesomeIcon icon={faPenToSquare} />
+            <span className="sr-only">Edit entry</span>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--entry-action"
+            title="Delete entry"
+            onClick={() => requestDeleteEntry(entry)}
+          >
+            <FontAwesomeIcon icon={faTrash} />
+            <span className="sr-only">Delete entry</span>
+          </button>
+        </div>
+      </div>
+      {entry.siteUrl && (
+        <div className="entry-row">
+          <span className="label">
+            <FontAwesomeIcon icon={faLink} />
+            <span className="sr-only">URL</span>
+          </span>
+          <span className="value">
+            <a href={entry.siteUrl} target="_blank" rel="noopener noreferrer" className="site-link">
+              {getDisplaySiteUrl(entry.siteUrl)}
+            </a>
+          </span>
+        </div>
+      )}
+      <div className="entry-row">
+        <span className="label">
+          <FontAwesomeIcon icon={faUser} />
+          <span className="sr-only">User</span>
+        </span>
+        <span className="value copy-row">
+          {entry.userName || '-'}
+          {entry.userName && (
+            <button
+              type="button"
+              className={`icon-btn icon-btn--copy ${copiedId === `user-${entry.id}` ? 'copy-btn--copied' : ''}`}
+              title="Copy username"
+              onClick={() => handleCopy(entry.userName, `user-${entry.id}`)}
+            >
+              {copiedId === `user-${entry.id}` ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faCopy} />}
+            </button>
+          )}
+        </span>
+      </div>
+      <div className="entry-row">
+        <span className="label">
+          <FontAwesomeIcon icon={faUnlock} />
+          <span className="sr-only">Password</span>
+        </span>
+        <span className="value secret copy-row">
+          {revealedPasswordIds.has(entry.id) ? (
+            entry.password
+          ) : (
+            <>
+              <span className="password-mask" aria-hidden="true">
+                {Array.from({ length: Math.max(1, entry.password.length) }).map((_, index) => (
+                  <FontAwesomeIcon
+                    key={`${entry.id}-mask-${index}`}
+                    icon={faCircle}
+                  />
+                ))}
+              </span>
+              <span className="sr-only">Hidden password</span>
+            </>
+          )}
+          <button
+            type="button"
+            className="icon-btn icon-btn--copy"
+            title={revealedPasswordIds.has(entry.id) ? 'Hide password' : 'Show password'}
+            aria-label={revealedPasswordIds.has(entry.id) ? 'Hide password' : 'Show password'}
+            onClick={() => togglePasswordReveal(entry.id)}
+          >
+            {revealedPasswordIds.has(entry.id) ? (
+              <>
+                <FontAwesomeIcon icon={faBan} />
+                <span className="sr-only">Hide password</span>
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faEye} />
+                <span className="sr-only">Show password</span>
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className={`icon-btn icon-btn--copy ${copiedId === `pw-${entry.id}` ? 'copy-btn--copied' : ''}`}
+            title="Copy password"
+            onClick={() => handleCopy(entry.password, `pw-${entry.id}`)}
+          >
+            {copiedId === `pw-${entry.id}` ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faCopy} />}
+          </button>
+        </span>
+      </div>
+      {entry.notes && (
+        <div className="entry-row notes">
+          <span className="label">
+            <FontAwesomeIcon icon={faFileLines} />
+            <span className="sr-only">Notes</span>
+          </span>
+          <span className="value-notes">{entry.notes}</span>
+        </div>
+      )}
+    </li>
   )
 
   return (
@@ -829,8 +958,38 @@ function App() {
               <FontAwesomeIcon icon={faUnlock} />
               <span>Passwords</span>
             </h2>
+            {entries.length > 0 && (
+              <div className="search-bar">
+                <input
+                  type="search"
+                  className="search-input"
+                  placeholder="Search by site name…"
+                  aria-label="Search entries by site name"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="icon-btn search-clear-btn"
+                    aria-label="Clear search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <FontAwesomeIcon icon={faXmark} />
+                  </button>
+                )}
+              </div>
+            )}
             {entries.length === 0 ? (
               <p>No entries yet.</p>
+            ) : filteredEntries !== null ? (
+              filteredEntries.length === 0 ? (
+                <p className="search-no-results">No matches for &ldquo;{searchQuery}&rdquo;.</p>
+              ) : (
+                <ul className="entry-list">
+                  {filteredEntries.map(renderEntryItem)}
+                </ul>
+              )
             ) : (
               <>
                 {GROUP_OPTIONS.map(({ value: group }) => (
@@ -841,124 +1000,7 @@ function App() {
                         <span>{group}</span>
                       </h3>
                       <ul className="entry-list">
-                {groupedEntries[group].map((entry) => (
-                  <li key={entry.id} className="entry-item">
-                    <div className="entry-header">
-                      <span className="entry-site-name">{entry.siteName}</span>
-                      <div className="entry-actions">
-                        <button
-                          type="button"
-                          className="icon-btn icon-btn--entry-action"
-                          title="Edit entry"
-                          onClick={() => requestEditEntry(entry)}
-                        >
-                          <FontAwesomeIcon icon={faPenToSquare} />
-                          <span className="sr-only">Edit entry</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-btn icon-btn--entry-action"
-                          title="Delete entry"
-                          onClick={() => requestDeleteEntry(entry)}
-                        >
-                          <FontAwesomeIcon icon={faXmark} />
-                          <span className="sr-only">Delete entry</span>
-                        </button>
-                      </div>
-                    </div>
-                    {entry.siteUrl && (
-                      <div className="entry-row">
-                        <span className="label">
-                          <FontAwesomeIcon icon={faLink} />
-                          <span className="sr-only">URL</span>
-                        </span>
-                        <span className="value">
-                          <a href={entry.siteUrl} target="_blank" rel="noopener noreferrer" className="site-link">
-                            {getDisplaySiteUrl(entry.siteUrl)}
-                          </a>
-                        </span>
-                      </div>
-                    )}
-                    <div className="entry-row">
-                      <span className="label">
-                        <FontAwesomeIcon icon={faUser} />
-                        <span className="sr-only">User</span>
-                      </span>
-                      <span className="value copy-row">
-                        {entry.userName || '-'}
-                        {entry.userName && (
-                          <button
-                            type="button"
-                            className={`icon-btn icon-btn--copy ${copiedId === `user-${entry.id}` ? 'copy-btn--copied' : ''}`}
-                            title="Copy username"
-                            onClick={() => handleCopy(entry.userName, `user-${entry.id}`)}
-                          >
-                            {copiedId === `user-${entry.id}` ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faCopy} />}
-                          </button>
-                        )}
-                      </span>
-                    </div>
-                    <div className="entry-row">
-                      <span className="label">
-                        <FontAwesomeIcon icon={faUnlock} />
-                        <span className="sr-only">Password</span>
-                      </span>
-                      <span className="value secret copy-row">
-                        {revealedPasswordIds.has(entry.id) ? (
-                          entry.password
-                        ) : (
-                          <>
-                            <span className="password-mask" aria-hidden="true">
-                              {Array.from({ length: Math.max(1, entry.password.length) }).map((_, index) => (
-                                <FontAwesomeIcon
-                                  key={`${entry.id}-mask-${index}`}
-                                  icon={faCircle}
-                                />
-                              ))}
-                            </span>
-                            <span className="sr-only">Hidden password</span>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          className="icon-btn icon-btn--copy"
-                          title={revealedPasswordIds.has(entry.id) ? 'Hide password' : 'Show password'}
-                          aria-label={revealedPasswordIds.has(entry.id) ? 'Hide password' : 'Show password'}
-                          onClick={() => togglePasswordReveal(entry.id)}
-                        >
-                          {revealedPasswordIds.has(entry.id) ? (
-                            <>
-                              <FontAwesomeIcon icon={faBan} />
-                              <span className="sr-only">Hide password</span>
-                            </>
-                          ) : (
-                            <>
-                              <FontAwesomeIcon icon={faEye} />
-                              <span className="sr-only">Show password</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          className={`icon-btn icon-btn--copy ${copiedId === `pw-${entry.id}` ? 'copy-btn--copied' : ''}`}
-                          title="Copy password"
-                          onClick={() => handleCopy(entry.password, `pw-${entry.id}`)}
-                        >
-                          {copiedId === `pw-${entry.id}` ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faCopy} />}
-                        </button>
-                      </span>
-                    </div>
-                    {entry.notes && (
-                      <div className="entry-row notes">
-                        <span className="label">
-                          <FontAwesomeIcon icon={faFileLines} />
-                          <span className="sr-only">Notes</span>
-                        </span>
-                        <span className="value-notes">{entry.notes}</span>
-                      </div>
-                    )}
-                  </li>
-                ))}
+                        {groupedEntries[group].map(renderEntryItem)}
                       </ul>
                     </div>
                   )
