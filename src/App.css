@@ -331,6 +331,14 @@ button {
   color: var(--muted);
 }
 
+.modal-card .stack {
+  min-width: 0;
+}
+
+.modal-card .stack > * {
+  min-width: 0;
+}
+
 .modal-actions {
   margin-top: 14px;
   display: flex;
@@ -375,6 +383,7 @@ button {
   resize: vertical;
   min-width: 0;
   max-width: 100%;
+  overflow-x: auto;
 }
 
 .sr-only {
