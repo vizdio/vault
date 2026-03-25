@@ -1,4 +1,4 @@
-const CACHE_NAME = 'password-vault-v2'
+const CACHE_NAME = 'password-vault-v3'
 const toAbsoluteUrl = (path) => new URL(path, self.registration.scope).toString()
 const APP_SHELL_URLS = [
   toAbsoluteUrl('./'),
@@ -7,7 +7,7 @@ const APP_SHELL_URLS = [
   toAbsoluteUrl('./icons/icon-192.svg'),
   toAbsoluteUrl('./icons/icon-512.svg'),
 ]
-const CACHEABLE_DESTINATIONS = new Set(['style', 'script', 'worker', 'image', 'font'])
+const CACHEABLE_DESTINATIONS = new Set(['style', 'script', 'worker', 'font'])
 
 const cacheResponse = async (request, response) => {
   if (!response.ok || response.type !== 'basic') {
