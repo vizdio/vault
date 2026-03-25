@@ -3,21 +3,35 @@
   margin: 0 auto;
   padding: 8px 8px 32px;
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 
 .hero-card {
-  padding: 0 16px;
-  height: 54px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
 }
 
 .hero-card h1 {
   color: #fff;
-  font-size: clamp(1.6rem, 4vw, 2.3rem);
-  line-height: 1.1;
-  letter-spacing: -0.03em;
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-shadow: #000 1px 1px 3px;
+}
+
+.brand-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.brand-logo {
+  width: 35px;
+  height: 35px;
+  border-radius: 4px;
+  display: block;
+  flex-shrink: 0;
 }
 
 .panel {
@@ -38,14 +52,14 @@
 
 .stack,
 .entry-form {
-  margin-top: 14px;
+  margin-top: 8px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 label {
   display: grid;
-  gap: 2px;
+  gap: 4px;
   color: var(--muted);
   font-size: 0.95rem;
 }
@@ -87,12 +101,20 @@ button {
 .primary-btn {
   background: var(--accent);
   color: var(--accent-ink);
+  width: 100%;
 }
 
 .ghost-btn {
   background: #fff;
   color: #274451;
   border: 1px solid var(--border);
+}
+
+.lock-btn {
+  background: transparent;
+  color: #000;
+  font-size: 1.5rem;
+  padding: 8px;
 }
 
 .danger-action-btn {
@@ -127,7 +149,7 @@ button {
 }
 
 .label {
-  color: var(--muted);
+  color: var(--accent);
   font-size: 0.86rem;
 }
 
@@ -147,8 +169,7 @@ button {
 }
 
 .error {
-  color: var(--danger);
-  font-weight: 700;
+  color: var(--danger) !important;
 }
 
 .entry-header {
@@ -170,6 +191,7 @@ button {
   font-weight: 700;
   color: var(--ink);
   word-break: break-word;
+  font-size: 1.3rem;
 }
 
 .edit-btn {
@@ -177,7 +199,7 @@ button {
   border: none;
   padding: 2px 4px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.5rem;
   color: var(--muted);
   opacity: 0.6;
   border-radius: var(--radius-md);
@@ -196,7 +218,7 @@ button {
   border: none;
   padding: 2px 4px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.5rem;
   color: var(--muted);
   opacity: 0.5;
   border-radius: var(--radius-md);
@@ -231,7 +253,7 @@ button {
   cursor: pointer;
   font-size: 1rem;
   color: var(--muted);
-  opacity: 0.6;
+  opacity: 0.75;
   border-radius: var(--radius-md);
   transition: opacity 0.15s, color 0.15s;
   line-height: 1;
@@ -266,13 +288,13 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width:30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
   font-size: 1.25rem;
-  line-height: 1;
+  line-height: 30px;
   flex-shrink: 0;
   transition: background 0.15s;
   font-weight: 700;
@@ -281,12 +303,13 @@ button {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, #061017, transparent 35%);
+  background: color-mix(in srgb, #000, transparent 25%);
   display: grid;
   place-items: center;
   padding: 16px;
   z-index: 1000;
   width: 100vw;
+  max-width: 100vw;
 }
 
 .modal-card {
@@ -326,9 +349,7 @@ button {
 }
 
 .auth-message {
-  color: var(--accent);
-  font-weight: 700;
-  margin: 0 0 4px;
+  margin: 0 0 8px;
 }
 
 .transfer-actions {
@@ -338,7 +359,7 @@ button {
 }
 
 .transfer-message {
-  color: var(--muted);
+  color: var(--danger) !important;
   margin: 0;
 }
 

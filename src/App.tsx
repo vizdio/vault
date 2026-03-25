@@ -276,7 +276,7 @@ function App() {
       setEditingEntryId(null)
       setMasterPassword('')
     } catch {
-      setUnlockError('Incorrect master password or corrupted vault data.')
+      setUnlockError('🞬 Incorrect master password.')
     }
   }
 
@@ -394,8 +394,9 @@ function App() {
 
   const exportEncryptedBackup = () => {
     const stored = loadStoredVault()
+    setTransferMessage('')
     if (!stored) {
-      setTransferMessage('No vault data found to export.')
+      setTransferMessage('🞬 No vault data found to export.')
       return
     }
 
@@ -418,7 +419,7 @@ function App() {
     link.remove()
     URL.revokeObjectURL(downloadUrl)
 
-    setTransferMessage('Encrypted backup exported.')
+    setTransferMessage('')
   }
 
   const restoreEncryptedBackupText = (text: string): void => {
@@ -429,7 +430,7 @@ function App() {
       parsed.backupVersion === 1 && parsed.vault ? parsed.vault : parsed
 
     if (!isStoredVaultShape(vaultData)) {
-      throw new Error('Invalid encrypted backup format.')
+      throw new Error('🞬 Invalid encrypted backup format.')
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vaultData))
@@ -439,7 +440,7 @@ function App() {
     setAccessMode('login')
     setMasterPassword('')
     resetEntryForm()
-    setAuthMessage('Vault restored. Enter your master password to unlock.')
+    setAuthMessage('Your vault has been restored. Enter your master password to unlock it.')
   }
 
   const importEncryptedBackup = async (
@@ -453,7 +454,7 @@ function App() {
     try {
       restoreEncryptedBackupText(await file.text())
     } catch {
-      setTransferMessage('Import failed. Choose a valid encrypted backup JSON file.')
+      setTransferMessage('🞬 Import failed. Choose a valid encrypted backup JSON file.')
     } finally {
       event.currentTarget.value = ''
     }
@@ -467,7 +468,7 @@ function App() {
       setPasteImportOpen(false)
       setPasteImportText('')
     } catch {
-      setTransferMessage('Import failed. Make sure the pasted text is valid backup JSON.')
+      setTransferMessage('🞬 Import failed. Make sure the pasted text is valid backup JSON.')
       setPasteImportOpen(false)
       setPasteImportText('')
     }
@@ -483,16 +484,24 @@ function App() {
     <main className="app-shell">
       <header className="hero-card">
         <div className="panel-title-row">
-          <h1>PASSWORD VAULT</h1>
+          <h1 className="brand-title">
+            <img
+              src="/icons/apple-touch-icon-180-v4.png"
+              alt=""
+              aria-hidden="true"
+              className="brand-logo"
+            />
+            <span>PASSWORD VAULT</span>
+          </h1>
           {accessMode === 'unlocked' && (
             <button
               type="button"
-              className="ghost-btn"
+              className="lock-btn"
               onClick={handleLock}
               aria-label="Lock vault"
               title="Lock vault"
             >
-              🔒
+              ✕
             </button>
           )}
         </div>
@@ -500,14 +509,8 @@ function App() {
 
       {(accessMode === 'setup' || accessMode === 'login') && (
         <section className="panel auth-panel">
-          <h2>{accessMode === 'setup' ? 'Create master password' : 'Unlock vault'}</h2>
+          <h2>{accessMode === 'setup' ? 'Create Master Password' : 'Unlock Vault'}</h2>
           {authMessage && <p className="auth-message">{authMessage}</p>}
-          <p>
-            {accessMode === 'setup'
-              ? 'This password unlocks and encrypts your vault. It is never stored as plain text.'
-              : 'Enter your master password to decrypt saved entries.'}
-          </p>
-
           <form
             onSubmit={accessMode === 'setup' ? handleSetup : handleUnlock}
             className="stack"
@@ -556,7 +559,7 @@ function App() {
               onClick={() => setAddEntryOpen((open) => !open)}
               aria-expanded={addEntryOpen}
             >
-              <span className="add-entry-icon">{addEntryOpen ? '−' : '+'}</span>
+              <span className="add-entry-icon">{addEntryOpen ? '⮝' : '＋'}</span>
               <h2>{editingEntryId ? 'Update' : 'Add'}</h2>
             </button>
 
@@ -587,6 +590,7 @@ function App() {
                   type="text"
                   value={entryUserName}
                   onChange={(event) => setEntryUserName(event.target.value)}
+                  required
                 />
               </label>
 
@@ -622,9 +626,9 @@ function App() {
           </section>
 
           <section className="panel">
-            <h2>Passwords ({entries.length})</h2>
+            <h2>Passwords</h2>
             {sortedEntries.length === 0 ? (
-              <p>No entries yet. Add your first site credential above.</p>
+              <p>No entries yet.</p>
             ) : (
               <ul className="entry-list">
                 {sortedEntries.map((entry) => (
@@ -704,28 +708,27 @@ function App() {
 
           <section className="panel transfer-panel">
             <h2>Backup & Restore</h2>
-            <p>Export creates an encrypted backup. Only your master password can restore it.</p>
             <div className="transfer-actions">
               <button
                 type="button"
                 className="primary-btn"
                 onClick={exportEncryptedBackup}
               >
-                Export
+                Export File
               </button>
               <button
                 type="button"
                 className="primary-btn"
-                onClick={() => importFileInputRef.current?.click()}
+                onClick={() => {setTransferMessage(''); importFileInputRef.current?.click()}}
               >
-                Import
+                Import File
               </button>
               <button
                 type="button"
                 className="primary-btn"
                 onClick={() => { setPasteImportOpen(true); setTransferMessage('') }}
               >
-                Paste
+                Import by Pasting
               </button>
               <input
                 ref={importFileInputRef}
@@ -750,7 +753,6 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="paste-import-title">Import by Pasting</h2>
-            <p>Paste the contents of an encrypted backup JSON file below.</p>
             <form onSubmit={handlePasteImport} className="stack">
               <textarea
                 value={pasteImportText}
