@@ -22,10 +22,10 @@ type StoredVault = {
 
 type AccessMode = 'setup' | 'login' | 'unlocked'
 
-type PlaintextVaultBackup = {
-  version: 1
+type EncryptedVaultBackup = {
+  backupVersion: 1
   exportedAt: string
-  entries: VaultEntry[]
+  vault: StoredVault
 }
 
 const STORAGE_KEY = 'password-vault:v1'
@@ -142,20 +142,18 @@ const loadStoredVault = (): StoredVault | null => {
   }
 }
 
-const isVaultEntryShape = (value: unknown): value is VaultEntry => {
+const isStoredVaultShape = (value: unknown): value is StoredVault => {
   if (!value || typeof value !== 'object') {
     return false
   }
 
   const candidate = value as Record<string, unknown>
   return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.siteName === 'string' &&
-    typeof candidate.siteUrl === 'string' &&
-    typeof candidate.userName === 'string' &&
-    typeof candidate.password === 'string' &&
-    typeof candidate.notes === 'string' &&
-    typeof candidate.createdAt === 'string'
+    candidate.version === 1 &&
+    typeof candidate.salt === 'string' &&
+    typeof candidate.iv === 'string' &&
+    typeof candidate.ciphertext === 'string' &&
+    typeof candidate.iterations === 'number'
   )
 }
 
@@ -182,6 +180,7 @@ function App() {
   const [transferMessage, setTransferMessage] = useState('')
   const [pasteImportOpen, setPasteImportOpen] = useState(false)
   const [pasteImportText, setPasteImportText] = useState('')
+  const [authMessage, setAuthMessage] = useState('')
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
   const [vaultMeta, setVaultMeta] = useState<
@@ -217,6 +216,7 @@ function App() {
   const handleSetup = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setUnlockError('')
+    setAuthMessage('')
 
     if (masterPassword.length < 10) {
       setUnlockError('Use at least 10 characters for your master password.')
@@ -247,6 +247,7 @@ function App() {
   const handleUnlock = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setUnlockError('')
+    setAuthMessage('')
 
     const storedVault = loadStoredVault()
     if (!storedVault) {
@@ -391,11 +392,17 @@ function App() {
     })
   }
 
-  const exportUnencryptedBackup = () => {
-    const payload: PlaintextVaultBackup = {
-      version: 1,
+  const exportEncryptedBackup = () => {
+    const stored = loadStoredVault()
+    if (!stored) {
+      setTransferMessage('No vault data found to export.')
+      return
+    }
+
+    const payload: EncryptedVaultBackup = {
+      backupVersion: 1,
       exportedAt: new Date().toISOString(),
-      entries,
+      vault: stored,
     }
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -405,73 +412,58 @@ function App() {
     const link = document.createElement('a')
     const stamp = new Date().toISOString().slice(0, 10)
     link.href = downloadUrl
-    link.download = `password-vault-plaintext-${stamp}.json`
+    link.download = `password-vault-backup-${stamp}.json`
     document.body.append(link)
     link.click()
     link.remove()
     URL.revokeObjectURL(downloadUrl)
 
-    setTransferMessage('Plain-text backup exported.')
+    setTransferMessage('Encrypted backup exported.')
   }
 
-  const parseAndImportBackupText = async (text: string): Promise<void> => {
-    if (!cryptoKey || !vaultMeta) {
-      setTransferMessage('Unlock the vault before importing.')
-      return
+  const restoreEncryptedBackupText = (text: string): void => {
+    const parsed = JSON.parse(text) as Record<string, unknown>
+
+    // Accept both the envelope format {backupVersion, vault} and a raw StoredVault
+    const vaultData =
+      parsed.backupVersion === 1 && parsed.vault ? parsed.vault : parsed
+
+    if (!isStoredVaultShape(vaultData)) {
+      throw new Error('Invalid encrypted backup format.')
     }
 
-    const parsed = JSON.parse(text) as { entries?: unknown }
-
-    if (!Array.isArray(parsed.entries)) {
-      throw new Error('Invalid backup: missing entries array.')
-    }
-
-    const normalizedEntries = parsed.entries.map((entry) => {
-      if (!isVaultEntryShape(entry)) {
-        throw new Error('Invalid entry shape.')
-      }
-
-      return {
-        ...entry,
-        siteName: entry.siteName.trim(),
-        siteUrl: entry.siteUrl.trim(),
-        userName: entry.userName.trim(),
-        notes: entry.notes.trim(),
-      }
-    })
-
-    await saveEntries(normalizedEntries, cryptoKey, vaultMeta)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(vaultData))
+    setCryptoKey(null)
+    setVaultMeta(null)
+    setEntries([])
+    setAccessMode('login')
+    setMasterPassword('')
     resetEntryForm()
-    setTransferMessage(`Imported ${normalizedEntries.length} entries from backup.`)
+    setAuthMessage('Vault restored. Enter your master password to unlock.')
   }
 
-  const importUnencryptedBackup = async (
+  const importEncryptedBackup = async (
     event: FormEvent<HTMLInputElement>,
   ) => {
-    if (!cryptoKey || !vaultMeta) {
-      setTransferMessage('Unlock the vault before importing.')
-      return
-    }
-
     const file = event.currentTarget.files?.[0]
     if (!file) {
       return
     }
 
     try {
-      await parseAndImportBackupText(await file.text())
+      restoreEncryptedBackupText(await file.text())
     } catch {
-      setTransferMessage('Import failed. Choose a valid plain-text backup JSON file.')
+      setTransferMessage('Import failed. Choose a valid encrypted backup JSON file.')
     } finally {
       event.currentTarget.value = ''
     }
   }
 
-  const handlePasteImport = async (event: FormEvent<HTMLFormElement>) => {
+  const handlePasteImport = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     try {
-      await parseAndImportBackupText(pasteImportText)
+      restoreEncryptedBackupText(pasteImportText)
       setPasteImportOpen(false)
       setPasteImportText('')
     } catch {
@@ -509,6 +501,7 @@ function App() {
       {(accessMode === 'setup' || accessMode === 'login') && (
         <section className="panel auth-panel">
           <h2>{accessMode === 'setup' ? 'Create master password' : 'Unlock vault'}</h2>
+          {authMessage && <p className="auth-message">{authMessage}</p>}
           <p>
             {accessMode === 'setup'
               ? 'This password unlocks and encrypts your vault. It is never stored as plain text.'
@@ -711,14 +704,12 @@ function App() {
 
           <section className="panel transfer-panel">
             <h2>Backup & Restore</h2>
-            <p className="transfer-warning">
-              Plain-text export contains unencrypted passwords. Store it securely.
-            </p>
+            <p>Export creates an encrypted backup. Only your master password can restore it.</p>
             <div className="transfer-actions">
               <button
                 type="button"
                 className="primary-btn"
-                onClick={exportUnencryptedBackup}
+                onClick={exportEncryptedBackup}
               >
                 Export
               </button>
@@ -727,20 +718,20 @@ function App() {
                 className="primary-btn"
                 onClick={() => importFileInputRef.current?.click()}
               >
-                Import json
+                Import
               </button>
               <button
                 type="button"
                 className="primary-btn"
                 onClick={() => { setPasteImportOpen(true); setTransferMessage('') }}
               >
-                Import text
+                Paste
               </button>
               <input
                 ref={importFileInputRef}
                 type="file"
                 accept="application/json,.json"
-                onChange={importUnencryptedBackup}
+                onChange={importEncryptedBackup}
                 className="sr-only"
               />
             </div>
@@ -759,13 +750,13 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="paste-import-title">Import by Pasting</h2>
-            <p>Paste the contents of a plain-text backup JSON file below.</p>
+            <p>Paste the contents of an encrypted backup JSON file below.</p>
             <form onSubmit={handlePasteImport} className="stack">
               <textarea
                 value={pasteImportText}
                 onChange={(event) => setPasteImportText(event.target.value)}
                 rows={10}
-                placeholder='{"version":1,"entries":[...]}'
+                placeholder='{"backupVersion":1,"vault":{...}}'
                 required
                 autoFocus
                 className="paste-import-textarea"

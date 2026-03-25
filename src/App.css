@@ -286,10 +286,12 @@ button {
   place-items: center;
   padding: 16px;
   z-index: 1000;
+  width: 100vw;
 }
 
 .modal-card {
-  width: min(480px, 100%);
+  width: 100%;
+  max-width: 480px;
   background: var(--paper);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -321,6 +323,12 @@ button {
 .transfer-warning {
   color: var(--danger);
   font-weight: 700;
+}
+
+.auth-message {
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 4px;
 }
 
 .transfer-actions {
