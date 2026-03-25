@@ -1,7 +1,7 @@
 .app-shell {
   max-width: 900px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 8px 8px 32px;
   display: grid;
   gap: 16px;
 }
@@ -38,7 +38,7 @@
   border: 1px solid color-mix(in srgb, var(--border), #fff 20%);
   border-radius: var(--radius-lg);
   box-shadow: var(--card-shadow);
-  padding: 18px;
+  padding: 12px;
 }
 
 .panel h2 {
@@ -58,8 +58,8 @@
 
 label {
   display: grid;
-  gap: 6px;
-  color: #1e3442;
+  gap: 2px;
+  color: var(--muted);
   font-size: 0.95rem;
 }
 
@@ -69,7 +69,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 11px 12px;
-  background: #fff;
+  background: #eee;
   color: var(--ink);
   font-size: 1rem;
 }
@@ -90,7 +90,7 @@ textarea:focus {
 button {
   border: none;
   border-radius: var(--radius-md);
-  padding: 10px 14px;
+  padding: 16px 16px;
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 700;
@@ -102,40 +102,34 @@ button {
 }
 
 .ghost-btn {
-  background: transparent;
+  background: #fff;
   color: #274451;
   border: 1px solid var(--border);
 }
 
 .danger-action-btn {
-  background: color-mix(in srgb, var(--danger), #fff 80%);
-  color: var(--danger);
-}
-
-.danger-btn {
-  background: color-mix(in srgb, var(--danger), #fff 80%);
-  color: var(--danger);
-  margin-top: 8px;
+  background: var(--danger);
+  color: #fff;
 }
 
 .entry-list {
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 10px;
+  gap: 4px;
 }
 
 .entry-item {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 12px;
+  padding: 8px;
   background: color-mix(in srgb, var(--paper), #fff 50%);
 }
 
 .entry-row {
   display: grid;
-  grid-template-columns: 90px 1fr;
+  grid-template-columns: 65px 1fr;
   gap: 6px;
   margin-bottom: 4px;
 }
@@ -154,12 +148,19 @@ button {
   word-break: break-word;
 }
 
+.value-notes {
+  color: var(--muted);
+  font-size: 0.86rem;
+  max-width: calc(100% - 125px);
+  word-wrap: break-word;
+}
+
 .secret {
   font-family: 'Courier New', monospace;
 }
 
 .error {
-  color: #9f2738;
+  color: var(--danger);
   font-weight: 700;
 }
 
@@ -169,6 +170,13 @@ button {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
+  border-bottom: 1px solid var(--paper);
+}
+
+.entry-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .entry-site-name {
@@ -177,23 +185,37 @@ button {
   word-break: break-word;
 }
 
-.delete-btn {
+.edit-btn {
   background: transparent;
   border: none;
   padding: 2px 4px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 1rem;
   color: var(--muted);
-  opacity: 0.5;
+  opacity: 0.6;
   border-radius: var(--radius-md);
   flex-shrink: 0;
   transition: opacity 0.15s, color 0.15s;
   line-height: 1;
 }
 
-.delete-btn:hover {
+.edit-btn:hover {
   opacity: 1;
-  color: var(--danger);
+  color: var(--accent);
+}
+
+.delete-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--muted);
+  opacity: 0.5;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+  line-height: 1;
 }
 
 .site-link {
@@ -210,6 +232,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
+  max-width: 230px;
 }
 
 .copy-btn {
@@ -228,9 +251,10 @@ button {
   line-height: 1;
 }
 
-.copy-btn:hover {
-  opacity: 1;
-  color: var(--accent);
+.entry-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .add-entry-toggle {
@@ -252,10 +276,6 @@ button {
   margin: 0;
 }
 
-.add-entry-toggle:hover .add-entry-icon {
-  background: color-mix(in srgb, var(--accent), #fff 70%);
-}
-
 .add-entry-icon {
   display: flex;
   align-items: center;
@@ -263,8 +283,8 @@ button {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent), #fff 80%);
-  color: var(--accent);
+  background: var(--accent);
+  color: #fff;
   font-size: 1.25rem;
   line-height: 1;
   flex-shrink: 0;
@@ -313,7 +333,7 @@ button {
   }
 
   .notes-label,
-  .entry-form .primary-btn {
+  .entry-form-actions {
     grid-column: 1 / -1;
   }
 }

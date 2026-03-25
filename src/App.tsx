@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
@@ -149,10 +149,12 @@ function App() {
   const [entryPassword, setEntryPassword] = useState('')
   const [entryNotes, setEntryNotes] = useState('')
   const [addEntryOpen, setAddEntryOpen] = useState(false)
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState<VaultEntry | null>(
     null,
   )
+  const addEntrySectionRef = useRef<HTMLElement | null>(null)
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
   const [vaultMeta, setVaultMeta] = useState<
@@ -210,6 +212,7 @@ function App() {
     setEntries([])
     setAccessMode('unlocked')
     setAddEntryOpen(false)
+    setEditingEntryId(null)
     setMasterPassword('')
     setConfirmPassword('')
   }
@@ -242,6 +245,7 @@ function App() {
       setEntries(decryptedEntries)
       setAccessMode('unlocked')
       setAddEntryOpen(false)
+      setEditingEntryId(null)
       setMasterPassword('')
     } catch {
       setUnlockError('Incorrect master password or corrupted vault data.')
@@ -256,6 +260,16 @@ function App() {
     setMasterPassword('')
     setConfirmPassword('')
     setUnlockError('')
+    setEditingEntryId(null)
+  }
+
+  const resetEntryForm = () => {
+    setEntrySiteName('')
+    setEntrySiteUrl('')
+    setEntryUserName('')
+    setEntryPassword('')
+    setEntryNotes('')
+    setEditingEntryId(null)
   }
 
   const handleAddEntry = async (event: FormEvent<HTMLFormElement>) => {
@@ -265,24 +279,34 @@ function App() {
       return
     }
 
-    const nextEntry: VaultEntry = {
-      id: crypto.randomUUID(),
+    const nextEntryData = {
       siteName: entrySiteName.trim(),
       siteUrl: entrySiteUrl.trim(),
       userName: entryUserName.trim(),
       password: entryPassword,
       notes: entryNotes.trim(),
-      createdAt: new Date().toISOString(),
     }
 
-    const nextEntries = [nextEntry, ...entries]
-    await saveEntries(nextEntries, cryptoKey, vaultMeta)
+    const nextEntries = editingEntryId
+      ? entries.map((entry) =>
+          entry.id === editingEntryId
+            ? {
+                ...entry,
+                ...nextEntryData,
+              }
+            : entry,
+        )
+      : [
+          {
+            id: crypto.randomUUID(),
+            ...nextEntryData,
+            createdAt: new Date().toISOString(),
+          },
+          ...entries,
+        ]
 
-    setEntrySiteName('')
-    setEntrySiteUrl('')
-    setEntryUserName('')
-    setEntryPassword('')
-    setEntryNotes('')
+    await saveEntries(nextEntries, cryptoKey, vaultMeta)
+    resetEntryForm()
   }
 
   const handleDeleteEntry = async (id: string) => {
@@ -292,6 +316,28 @@ function App() {
 
     const nextEntries = entries.filter((entry) => entry.id !== id)
     await saveEntries(nextEntries, cryptoKey, vaultMeta)
+
+    if (editingEntryId === id) {
+      resetEntryForm()
+    }
+  }
+
+  const cancelEntryEdit = () => {
+    resetEntryForm()
+  }
+
+  const requestEditEntry = (entry: VaultEntry) => {
+    setEntrySiteName(entry.siteName)
+    setEntrySiteUrl(entry.siteUrl)
+    setEntryUserName(entry.userName)
+    setEntryPassword(entry.password)
+    setEntryNotes(entry.notes)
+    setEditingEntryId(entry.id)
+    setAddEntryOpen(true)
+
+    requestAnimationFrame(() => {
+      addEntrySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   const requestDeleteEntry = (entry: VaultEntry) => {
@@ -328,7 +374,7 @@ function App() {
     <main className="app-shell">
       <header className="hero-card">
         <div className="panel-title-row">
-          <p className="eyebrow">Offline Password Vault</p>
+          <h1>PASSWORD VAULT</h1>
           {accessMode === 'unlocked' && (
             <button
               type="button"
@@ -341,10 +387,6 @@ function App() {
             </button>
           )}
         </div>
-        <h1>Private passwords on your device.</h1>
-        <p className="subtitle">
-          Data is encrypted in your browser before it is saved to local storage.
-        </p>
       </header>
 
       {(accessMode === 'setup' || accessMode === 'login') && (
@@ -397,7 +439,7 @@ function App() {
 
       {accessMode === 'unlocked' && (
         <>
-          <section className="panel">
+          <section className="panel" ref={addEntrySectionRef}>
             <button
               type="button"
               className="add-entry-toggle"
@@ -405,7 +447,7 @@ function App() {
               aria-expanded={addEntryOpen}
             >
               <span className="add-entry-icon">{addEntryOpen ? '−' : '+'}</span>
-              <h2>Add Entry</h2>
+              <h2>{editingEntryId ? 'Update' : 'Add'}</h2>
             </button>
 
             {addEntryOpen && <form onSubmit={handleAddEntry} className="entry-form">
@@ -456,16 +498,21 @@ function App() {
                   rows={3}
                 />
               </label>
-
-              <button type="submit" className="primary-btn">
-                Save Entry
-              </button>
+              <div className="entry-form-actions">
+                {editingEntryId && (
+                  <button type="button" className="ghost-btn" onClick={cancelEntryEdit}>
+                    Cancel
+                  </button>
+                )}
+                <button type="submit" className="primary-btn">
+                  {editingEntryId ? 'Update' : 'Save'}
+                </button>
+              </div>
             </form>}
           </section>
 
           <section className="panel">
-            <h2>Saved Entries ({entries.length})</h2>
-
+            <h2>Passwords ({entries.length})</h2>
             {sortedEntries.length === 0 ? (
               <p>No entries yet. Add your first site credential above.</p>
             ) : (
@@ -474,14 +521,24 @@ function App() {
                   <li key={entry.id} className="entry-item">
                     <div className="entry-header">
                       <span className="entry-site-name">{entry.siteName}</span>
-                      <button
-                        type="button"
-                        className="delete-btn"
-                        title="Delete entry"
-                        onClick={() => requestDeleteEntry(entry)}
-                      >
-                        ✕
-                      </button>
+                      <div className="entry-actions">
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          title="Edit entry"
+                          onClick={() => requestEditEntry(entry)}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          type="button"
+                          className="delete-btn"
+                          title="Delete entry"
+                          onClick={() => requestDeleteEntry(entry)}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                     {entry.siteUrl && (
                       <div className="entry-row">
@@ -523,10 +580,12 @@ function App() {
                         </button>
                       </span>
                     </div>
-                    <div className="entry-row notes">
-                      <span className="label">Notes</span>
-                      <span className="value">{entry.notes || '-'}</span>
-                    </div>
+                    {entry.notes && (
+                      <div className="entry-row notes">
+                        <span className="label">Notes</span>
+                        <span className="value-notes">{entry.notes}</span>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
