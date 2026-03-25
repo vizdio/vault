@@ -31,6 +31,14 @@ body {
   background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
 }
 
+@media (pointer: coarse) {
+  html,
+  body,
+  #root {
+    touch-action: pan-x pan-y;
+  }
+}
+
 h1,
 h2,
 p {
