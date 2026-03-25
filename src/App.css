@@ -338,6 +338,12 @@ button {
   gap: 8px;
 }
 
+.modal-actions .primary-btn,
+.modal-actions .ghost-btn,
+.modal-actions .danger-action-btn {
+  width: auto;
+}
+
 .transfer-panel {
   display: grid;
   gap: 10px;
@@ -389,5 +395,26 @@ button {
   .notes-label,
   .entry-form-actions {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .modal-card {
+    padding: 14px;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+    justify-content: stretch;
+  }
+
+  .modal-actions .primary-btn,
+  .modal-actions .ghost-btn,
+  .modal-actions .danger-action-btn {
+    width: 100%;
   }
 }
