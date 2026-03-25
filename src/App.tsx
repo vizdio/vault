@@ -84,6 +84,13 @@ type VaultEntry = {
 
 type AccessMode = 'setup' | 'login' | 'unlocked'
 const INACTIVITY_LOCK_MS = 5 * 60 * 1000
+const GENERATED_PASSWORD_LENGTH = 20
+const LOWERCASE_CHARS = 'abcdefghijklmnopqrstuvwxyz'
+const UPPERCASE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+const DIGIT_CHARS = '0123456789'
+const SYMBOL_CHARS = '!@#$%^&*()-_=+[]{};:,.?'
+const ALL_PASSWORD_CHARS =
+  `${LOWERCASE_CHARS}${UPPERCASE_CHARS}${DIGIT_CHARS}${SYMBOL_CHARS}`
 
 type PasswordStrengthLevel = 'very-weak' | 'weak' | 'fair' | 'good' | 'strong'
 
@@ -148,6 +155,49 @@ const clearClipboardBestEffort = async (): Promise<void> => {
   } catch {
     // Clipboard write may fail if browser permissions are restricted.
   }
+}
+
+const getSecureRandomIndex = (maxExclusive: number): number => {
+  const randomBuffer = new Uint32Array(1)
+  const maxUint32 = 0xFFFFFFFF
+  const threshold = maxUint32 - (maxUint32 % maxExclusive)
+
+  while (true) {
+    crypto.getRandomValues(randomBuffer)
+    const randomValue = randomBuffer[0]
+    if (randomValue < threshold) {
+      return randomValue % maxExclusive
+    }
+  }
+}
+
+const pickRandomChar = (charset: string): string => {
+  return charset[getSecureRandomIndex(charset.length)]
+}
+
+const shuffleString = (value: string): string => {
+  const chars = value.split('')
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = getSecureRandomIndex(i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
+
+const generateStrongPassword = (length = GENERATED_PASSWORD_LENGTH): string => {
+  const safeLength = Math.max(length, 12)
+  const requiredChars = [
+    pickRandomChar(LOWERCASE_CHARS),
+    pickRandomChar(UPPERCASE_CHARS),
+    pickRandomChar(DIGIT_CHARS),
+    pickRandomChar(SYMBOL_CHARS),
+  ]
+
+  while (requiredChars.length < safeLength) {
+    requiredChars.push(pickRandomChar(ALL_PASSWORD_CHARS))
+  }
+
+  return shuffleString(requiredChars.join(''))
 }
 
 function App() {
@@ -430,6 +480,10 @@ function App() {
     })
   }
 
+  const handleGenerateEntryPassword = () => {
+    setEntryPassword(generateStrongPassword())
+  }
+
   const requestImportWarning = (target: 'file' | 'paste') => {
     setTransferMessage('')
     setImportWarningTarget(target)
@@ -699,14 +753,23 @@ function App() {
                 required
               />
 
-              <input
-                type="password"
-                value={entryPassword}
-                onChange={(event) => setEntryPassword(event.target.value)}
-                placeholder="Password"
-                aria-label="Password"
-                required
-              />
+              <div className="password-input-row">
+                <input
+                  type="password"
+                  value={entryPassword}
+                  onChange={(event) => setEntryPassword(event.target.value)}
+                  placeholder="Password"
+                  aria-label="Password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="ghost-btn generate-password-btn"
+                  onClick={handleGenerateEntryPassword}
+                >
+                  Generate
+                </button>
+              </div>
 
               {entryPassword && (
                 <div className="strength-meter" role="status" aria-live="polite">

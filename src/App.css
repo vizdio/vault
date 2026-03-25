@@ -63,6 +63,19 @@
   gap: 8px;
 }
 
+.password-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.generate-password-btn {
+  width: auto;
+  padding: 11px 12px;
+  white-space: nowrap;
+}
+
 input,
 textarea {
   width: 100%;
