@@ -22,6 +22,12 @@ type StoredVault = {
 
 type AccessMode = 'setup' | 'login' | 'unlocked'
 
+type PlaintextVaultBackup = {
+  version: 1
+  exportedAt: string
+  entries: VaultEntry[]
+}
+
 const STORAGE_KEY = 'password-vault:v1'
 const PBKDF2_ITERATIONS = 250000
 
@@ -136,6 +142,23 @@ const loadStoredVault = (): StoredVault | null => {
   }
 }
 
+const isVaultEntryShape = (value: unknown): value is VaultEntry => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.siteName === 'string' &&
+    typeof candidate.siteUrl === 'string' &&
+    typeof candidate.userName === 'string' &&
+    typeof candidate.password === 'string' &&
+    typeof candidate.notes === 'string' &&
+    typeof candidate.createdAt === 'string'
+  )
+}
+
 function App() {
   const [accessMode, setAccessMode] = useState<AccessMode>('login')
   const [masterPassword, setMasterPassword] = useState('')
@@ -155,6 +178,8 @@ function App() {
     null,
   )
   const addEntrySectionRef = useRef<HTMLElement | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [transferMessage, setTransferMessage] = useState('')
 
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
   const [vaultMeta, setVaultMeta] = useState<
@@ -362,6 +387,74 @@ function App() {
       setCopiedId(key)
       setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500)
     })
+  }
+
+  const exportUnencryptedBackup = () => {
+    const payload: PlaintextVaultBackup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entries,
+    }
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    })
+    const downloadUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 10)
+    link.href = downloadUrl
+    link.download = `password-vault-plaintext-${stamp}.json`
+    document.body.append(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(downloadUrl)
+
+    setTransferMessage('Plain-text backup exported.')
+  }
+
+  const importUnencryptedBackup = async (
+    event: FormEvent<HTMLInputElement>,
+  ) => {
+    if (!cryptoKey || !vaultMeta) {
+      setTransferMessage('Unlock the vault before importing.')
+      return
+    }
+
+    const file = event.currentTarget.files?.[0]
+    if (!file) {
+      return
+    }
+
+    try {
+      const fileContent = await file.text()
+      const parsed = JSON.parse(fileContent) as { entries?: unknown }
+
+      if (!Array.isArray(parsed.entries)) {
+        throw new Error('Invalid backup file.')
+      }
+
+      const normalizedEntries = parsed.entries.map((entry) => {
+        if (!isVaultEntryShape(entry)) {
+          throw new Error('Invalid entry shape.')
+        }
+
+        return {
+          ...entry,
+          siteName: entry.siteName.trim(),
+          siteUrl: entry.siteUrl.trim(),
+          userName: entry.userName.trim(),
+          notes: entry.notes.trim(),
+        }
+      })
+
+      await saveEntries(normalizedEntries, cryptoKey, vaultMeta)
+      resetEntryForm()
+      setTransferMessage(`Imported ${normalizedEntries.length} entries from plain-text backup.`)
+    } catch {
+      setTransferMessage('Import failed. Choose a valid plain-text backup JSON file.')
+    } finally {
+      event.currentTarget.value = ''
+    }
   }
 
   const sortedEntries = useMemo(() => {
@@ -590,6 +683,34 @@ function App() {
                 ))}
               </ul>
             )}
+          </section>
+
+          <section className="panel transfer-panel">
+            <h2>Backup & Restore</h2>
+            <div className="transfer-actions">
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={exportUnencryptedBackup}
+              >
+                Export
+              </button>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => importFileInputRef.current?.click()}
+              >
+                Import
+              </button>
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={importUnencryptedBackup}
+                className="sr-only"
+              />
+            </div>
+            {transferMessage && <p className="transfer-message">{transferMessage}</p>}
           </section>
         </>
       )}

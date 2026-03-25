@@ -313,6 +313,39 @@ button {
   gap: 8px;
 }
 
+.transfer-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.transfer-warning {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.transfer-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.transfer-message {
+  color: var(--muted);
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (min-width: 760px) {
   .entry-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
