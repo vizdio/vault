@@ -1,50 +1,50 @@
 :root {
-  --bg-1: #666;
-  --bg-2: #333;
-  --paper: #ccc;
-  --ink: #222;
-  --muted: #666;
-  --border: #999;
-  --accent: #009;
-  --accent-ink: #fff6f2;
-  --danger: #c00;
-  --card-shadow: 5px 5px 10px rgba(7, 20, 25, 0.3);
-  --radius-lg: 20px;
-  --radius-md: 12px;
+    --bg-1: #666;
+    --bg-2: #333;
+    --paper: #ccc;
+    --ink: #222;
+    --muted: #666;
+    --border: #999;
+    --accent: #009;
+    --accent-ink: #fff6f2;
+    --danger: #c00;
+    --card-shadow: 5px 5px 10px rgba(7, 20, 25, 0.3);
+    --radius-lg: 20px;
+    --radius-md: 12px;
 
-  font-family: 'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif;
-  color: var(--ink);
-  background: var(--bg-1);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    font-family: 'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif;
+    color: var(--ink);
+    background: var(--bg-1);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 body {
-  margin: 0;
-  min-height: 100svh;
-  background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    margin: 0;
+    min-height: 100svh;
+    background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
 }
 
 @media (pointer: coarse) {
-  html,
-  body,
-  #root {
-    touch-action: pan-x pan-y;
-  }
+    html,
+    body,
+    #root {
+        touch-action: pan-x pan-y;
+    }
 }
 
 h1,
 h2,
 p {
-  margin: 0;
+    margin: 0;
 }
 
 #root {
-  min-height: 100svh;
+    min-height: 100svh;
 }
