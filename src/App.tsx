@@ -36,7 +36,7 @@ import {
 } from './lib/vaultCrypto'
 import { isStoredVaultShape, loadStoredVault, saveStoredVault } from './lib/vaultStorage'
 import type { EncryptedVaultBackup, StoredVaultMeta } from './lib/vaultStorage'
-import './App.css'
+import './App.less'
 
 const GROUP_OPTIONS = [
     { value: 'Private', icon: faUser },
@@ -563,7 +563,7 @@ function App() {
             '',
         ]
 
-        sortedEntries.forEach((entry, index) => {
+        sortedEntries.forEach((entry) => {
             lines.push(`${entry.siteName}`)
             lines.push(`- URL: ${entry.siteUrl || '-'}`)
             lines.push(`- User: ${entry.userName || '-'}`)
