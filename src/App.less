@@ -288,15 +288,37 @@ button {
 }
 
 .group-heading {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    width: 100%;
     margin: 12px 0 0;
+    padding: 4px 2px;
     font-size: 0.95rem;
     font-weight: 700;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+        color: var(--ink);
+    }
+
+    &__count {
+        font-size: 0.8rem;
+        font-weight: 400;
+        opacity: 0.7;
+    }
+
+    &__chevron {
+        margin-left: auto;
+        font-size: 0.8rem;
+    }
 }
 
 .entry-item {

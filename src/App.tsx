@@ -26,6 +26,8 @@ import {
     faXmark,
     faTrash,
     faTriangleExclamation,
+    faChevronDown,
+    faChevronUp,
 } from '@fortawesome/free-solid-svg-icons'
 import {
     buildStoredVault,
@@ -220,6 +222,9 @@ function App() {
     const [revealedPasswordIds, setRevealedPasswordIds] = useState<Set<string>>(() => new Set())
     const [importWarningTarget, setImportWarningTarget] = useState<'file' | 'paste' | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupName>>(
+        () => new Set(GROUP_OPTIONS.map(({ value }) => value)),
+    )
 
     const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
     const [vaultMeta, setVaultMeta] = useState<StoredVaultMeta | null>(null)
@@ -309,6 +314,18 @@ function App() {
         } catch {
             setUnlockError('Incorrect master password.')
         }
+    }
+
+    const toggleGroupCollapsed = (group: GroupName) => {
+        setCollapsedGroups((prev) => {
+            const next = new Set(prev)
+            if (next.has(group)) {
+                next.delete(group)
+            } else {
+                next.add(group)
+            }
+            return next
+        })
     }
 
     const lockVault = useCallback((message?: string) => {
@@ -1066,15 +1083,33 @@ function App() {
                                     ({ value: group }) =>
                                         groupedEntries[group].length > 0 && (
                                             <div key={group}>
-                                                <h3 className="group-heading">
+                                                <button
+                                                    type="button"
+                                                    className="group-heading"
+                                                    aria-expanded={!collapsedGroups.has(group)}
+                                                    onClick={() => toggleGroupCollapsed(group)}
+                                                >
                                                     <FontAwesomeIcon
                                                         icon={GROUP_ICON_BY_NAME[group]}
                                                     />
                                                     <span>{group}</span>
-                                                </h3>
-                                                <ul className="entry-list">
-                                                    {groupedEntries[group].map(renderEntryItem)}
-                                                </ul>
+                                                    <span className="group-heading__count">
+                                                        {groupedEntries[group].length}
+                                                    </span>
+                                                    <FontAwesomeIcon
+                                                        className="group-heading__chevron"
+                                                        icon={
+                                                            collapsedGroups.has(group)
+                                                                ? faChevronDown
+                                                                : faChevronUp
+                                                        }
+                                                    />
+                                                </button>
+                                                {!collapsedGroups.has(group) && (
+                                                    <ul className="entry-list">
+                                                        {groupedEntries[group].map(renderEntryItem)}
+                                                    </ul>
+                                                )}
                                             </div>
                                         ),
                                 )}
